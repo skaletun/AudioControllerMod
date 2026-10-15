@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.solarvant.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "solarvant.refmap.json",
+  "client": [
+    "MinecraftFrameMixin",
+    "OpaqueFaceMixin",
+    "SectionCompilerMixin",
+    "BlockColorsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,28 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "solarvant"
+version = "0.9.0-dev.1"
+displayName = "Solarvant"
+description = "Client-side frame stability and performance presets for Minecraft 1.21.1"
+authors = "Solarvant"
+logoFile = "assets/solarvant/icon.png"
+
+[[mixins]]
+config = "solarvant.neoforge.mixins.json"
+
+[[dependencies.solarvant]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.solarvant]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "CLIENT"

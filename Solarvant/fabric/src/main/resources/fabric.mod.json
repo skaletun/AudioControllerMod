@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "solarvant",
+  "version": "${version}",
+  "name": "Solarvant",
+  "description": "Experimental client meshing optimizations and frame-time diagnostics, no vanilla graphics overrides",
+  "authors": ["Solarvant"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/solarvant/icon.png",
+  "environment": "client",
+  "entrypoints": {"client": ["dev.solarvant.fabric.SolarvantFabric"]},
+  "mixins": [{"config": "solarvant.fabric.mixins.json", "environment": "client"}],
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

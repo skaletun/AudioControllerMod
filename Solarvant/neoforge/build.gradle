@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = project.mod_version
+group = 'dev.solarvant'
+base { archivesName = 'solarvant-neoforge-1.21.1' }
+java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
+sourceSets.main.java.srcDir '../common/src/main/java'
+sourceSets.main.resources.srcDir '../common/src/main/resources'
+
+neoForge {
+    version = project.neo_version
+    runs { client { client() } }
+    mods { solarvant { sourceSet(sourceSets.main) } }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }

@@ -1,0 +1,26 @@
+modLoader = "javafml"
+loaderVersion = "[52,)"
+license = "MIT"
+clientSideOnly = true
+
+[[mods]]
+modId = "solarvant"
+version = "0.9.0-dev.1"
+displayName = "Solarvant"
+description = "Experimental client meshing optimizations and frame-time diagnostics, no vanilla graphics overrides"
+authors = "Solarvant"
+logoFile = "assets/solarvant/icon.png"
+
+[[dependencies.solarvant]]
+modId = "forge"
+mandatory = true
+versionRange = "[52,)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.solarvant]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "CLIENT"

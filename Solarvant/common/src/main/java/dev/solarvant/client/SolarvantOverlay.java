@@ -64,7 +64,7 @@ public final class SolarvantOverlay {
         line(g, bx, right, ty + 70, "CHUNKS", SolarvantClient.chunkSummary(), TEXT);
         line(g, bx, right, ty + 84, "ENGINE", SolarvantClient.engineState(), ACCENT);
         line(g, bx, right, ty + 98, "GPU USAGE", "N/A (no GPU telemetry)", MUTED);
-        line(g, bx, right, ty + 112, "CHUNK UPLOAD", SolarvantClient.uploadSummary(), TEXT);
+        line(g, bx, right, ty + 112, "GPU REGIONS", SolarvantClient.nativeStatus(), TEXT);
         line(g, bx, right, ty + 126, "FACES CULLED", SolarvantClient.faceSummary(), TEXT);
         line(g, bx, right, ty + 140, "TINT REUSE", SolarvantClient.tintSummary(), TEXT);
         line(g, bx, right, ty + 154, "SECTION BUILDS", SolarvantClient.compilerSummary(), TEXT);

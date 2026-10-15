@@ -31,6 +31,7 @@ public final class SolarvantClient {
     private static String faceStatus = "--";
     private static String tintStatus = "--";
     private static String compilerStatus = "--";
+    private static String nativeStatus = "Inactive";
     private static long lastSystemSample;
     private static long lastGC;
     private static long lastGCWindowTime;
@@ -82,6 +83,7 @@ public final class SolarvantClient {
     public static String faceSummary() { return faceStatus; }
     public static String tintSummary() { return tintStatus; }
     public static String compilerSummary() { return compilerStatus; }
+    public static String nativeStatus() { return nativeStatus; }
     public static boolean tintCacheEnabled() { return started && config != null && config.cacheSectionTints && isEngineEnabled(); }
     public static void updateEngine() {
         start();
@@ -199,6 +201,7 @@ public final class SolarvantClient {
         if (BENCHMARK.active()) benchmarkStatus = "Recording: "
                 + (int)(BENCHMARK.progress(now) * 100.0) + "%";
         lastGraph = METER.graph(48);
+        nativeStatus = isNativeRendererEnabled() ? dev.solarvant.engine.NativeRegionEngine.debug() : "Vanilla / opt-in";
         if (isEngineEnabled()) {
             faceStatus = FaceAccelerator.acceleratedFaces() + " hidden / "
                     + ReciprocalFaceCache.hits() + " reciprocal hits";

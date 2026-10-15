@@ -36,3 +36,5 @@ This is a live **region-storage/GL3.3 rendering prototype**, not full multi-draw
 Default OFF until on-hardware visual equivalence, mixed layers, and memory
 pressure tests pass. This mode must not be compared to Sodium as a released
 FPS replacement yet. The GL4.3 multi-draw shader is still not integrated.
+
+The opt-in GL3.3 prototype accepts only `DefaultVertexFormat.BLOCK`. Any custom terrain format falls back to vanilla, preventing incompatible shared VAO layouts on shader/mod packs. Enabling the mode requires a world reload; built buffers are not replaced in-flight.

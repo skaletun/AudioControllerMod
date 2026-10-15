@@ -2,6 +2,7 @@ package dev.solarvant.engine;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -120,7 +121,9 @@ public final class NativeRegionEngine {
                 || state.vertexCount() % 4 != 0 || state.indexCount() != state.vertexCount() / 4 * 6)
             return null;
         ByteBuffer vertices = mesh.vertexBuffer();
-        if (vertices == null || state.format().getVertexSize() <= 0) return null;
+        // A region page is keyed by vertex stride. Reject other vertex layouts,
+        // including shader-mod changes with identical strides, to avoid VAO aliasing.
+        if (vertices == null || !DefaultVertexFormat.BLOCK.equals(state.format())) return null;
         int stride = state.indexType().bytes;
         if (stride != 2 && stride != 4) return null;
         if (stride == 2 && state.vertexCount() > 65535) return null;

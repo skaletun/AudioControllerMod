@@ -220,6 +220,7 @@ public final class RegionGpuBackend implements AutoCloseable {
     }
 
     private static void delete(GpuPage page) {
+        RenderSystem.glBindVertexArray(0); // Keep Minecraft's tracked binding coherent.
         GL15.glDeleteBuffers(page.vertexBuffer());
         GL15.glDeleteBuffers(page.indexBuffer());
         GL30.glDeleteVertexArrays(page.vertexArray());

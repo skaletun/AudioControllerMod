@@ -1,4 +1,4 @@
-name: Solarvant 0.8.0 1.21.1 three-loader build
+name: Solarvant 0.9.0-dev.1 1.21.1 three-loader build
 on:
   push:
     branches: [solarvant-mc1.21.1-build]
@@ -53,16 +53,16 @@ jobs:
           find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' -print
           jarpath=$(find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
           test -n "$jarpath"
-          cp "$jarpath" "dist/solarvant-${LOADER}-mc1.21.1-0.8.0.jar"
+          cp "$jarpath" "dist/solarvant-${LOADER}-mc1.21.1-0.9.0-dev.1.jar"
       - name: Verify class packaging and safe mixin manifest
         shell: bash
         env:
           LOADER: ${{ matrix.loader }}
         run: |
-          python3 scripts/verify-artifact.py "dist/solarvant-${LOADER}-mc1.21.1-0.8.0.jar" "${LOADER}"
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.8.0.jar" | grep -q 'dev/solarvant/core/BenchmarkRecorder.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.8.0.jar" | grep -q 'dev/solarvant/engine/FaceAccelerator.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.8.0.jar" | grep -q 'assets/solarvant/icon.png'
+          python3 scripts/verify-artifact.py "dist/solarvant-${LOADER}-mc1.21.1-0.9.0-dev.1.jar" "${LOADER}"
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.9.0-dev.1.jar" | grep -q 'dev/solarvant/core/BenchmarkRecorder.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.9.0-dev.1.jar" | grep -q 'dev/solarvant/engine/FaceAccelerator.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.9.0-dev.1.jar" | grep -q 'assets/solarvant/icon.png'
       - uses: actions/upload-artifact@v4
         with:
           name: solarvant-${{ matrix.loader }}-mc1.21.1

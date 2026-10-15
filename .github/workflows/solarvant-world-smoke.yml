@@ -1,0 +1,89 @@
+name: Solarvant in-world native renderer smoke
+on:
+  push:
+    branches: [solarvant-mc1.21.1-build]
+    paths:
+      - .github/workflows/solarvant-world-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fabric-world-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Install display automation tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libgl1-mesa-dri
+      - name: Enable native renderer and launch client
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+          DISPLAY: ':99'
+        run: |
+          set -euo pipefail
+          mkdir -p Solarvant/fabric/run/config screenshots
+          cat > Solarvant/fabric/run/config/solarvant.properties <<'EOF'
+          engineEnabled=true
+          nativeRendererEnabled=true
+          fastOpaqueFaces=true
+          cacheSectionTints=true
+          hudVisible=true
+          compactHud=false
+          EOF
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >xvfb.log 2>&1 &
+          XVFB_PID=$!
+          trap 'kill $XVFB_PID 2>/dev/null || true' EXIT
+          sleep 3
+          (cd Solarvant/fabric && timeout 500 gradle runClient --no-daemon --console=plain) > client.log 2>&1 &
+          CLIENT_PID=$!
+          for attempt in $(seq 1 100); do
+            if xdotool search --onlyvisible --name 'Minecraft' >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          sleep 25
+          xdotool mousemove 640 287 click 1
+          sleep 10
+          import -window root screenshots/world-list.png || true
+          xdotool mousemove 635 677 click 1
+          sleep 10
+          import -window root screenshots/world-create.png || true
+          xdotool mousemove 630 650 click 1
+          sleep 120
+          import -window root screenshots/world-render.png || true
+          echo "World directories:"
+          find Solarvant/fabric/run/saves -maxdepth 2 -name level.dat -print || true
+          grep -E 'integrated server|Preparing spawn|Loaded [0-9]+ advancements|Started integrated' client.log | tail -15 || true
+          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError' client.log; then
+            echo "Client startup error detected"
+            tail -80 client.log
+            exit 1
+          fi
+          if ! find Solarvant/fabric/run/saves -maxdepth 2 -name level.dat | grep -q level.dat; then
+            echo "Could not verify an actual generated world; inspect screenshots"
+            exit 1
+          fi
+          echo "Generated world confirmed"
+          kill $CLIENT_PID 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: solarvant-dev3-world-smoke-evidence
+          path: |
+            screenshots/*.png
+            client.log
+            xvfb.log
+          retention-days: 14
+          if-no-files-found: error

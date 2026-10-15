@@ -1,0 +1,62 @@
+name: Solarvant 1.21.1 three-loader build
+on:
+  push:
+    branches: [solarvant-mc1.21.1-build]
+    paths:
+      - 'solarvant-build/**'
+      - '.github/workflows/solarvant.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Extract Solarvant source
+        run: base64 -d solarvant-build/sources.tar.xz.b64 | tar -xJ
+      - name: Core tests
+        run: bash scripts/test-core.sh
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, neoforge, forge]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Extract Solarvant source
+        run: base64 -d solarvant-build/sources.tar.xz.b64 | tar -xJ
+      - name: Build ${{ matrix.loader }} Minecraft 1.21.1 jar
+        working-directory: ${{ matrix.loader }}
+        run: gradle clean build --stacktrace --no-daemon
+      - name: Copy mod jar for distribution
+        env:
+          LOADER: ${{ matrix.loader }}
+        shell: bash
+        run: |
+          mkdir -p dist
+          find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' -print
+          jarpath=$(find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
+          test -n "$jarpath"
+          cp "$jarpath" "dist/solarvant-${LOADER}-mc1.21.1-0.1.0.jar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solarvant-${{ matrix.loader }}-mc1.21.1
+          path: dist/*.jar
+          if-no-files-found: error
+          retention-days: 30

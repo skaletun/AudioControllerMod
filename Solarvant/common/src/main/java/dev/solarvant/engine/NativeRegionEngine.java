@@ -34,11 +34,12 @@ public final class NativeRegionEngine {
     private static RegionMeshPipeline pipeline;
     private static RegionGpuBackend gpu;
     private static ClientLevel level;
+    private static long generation;
     private static long fallbackMeshes;
     private static long nativeUploads;
     private static ByteBuffer generatedIndices = ByteBuffer.allocateDirect(4096).order(ByteOrder.nativeOrder());
 
-    public record Residency(Ticket ticket, MeshKey key, RegionMeshPipeline.PageId page,
+    public record Residency(long worldGeneration, Ticket ticket, MeshKey key, RegionMeshPipeline.PageId page,
                             int count, int firstIndex, int baseVertex, int indexBytes,
                             VertexFormat.Mode mode) { }
 
@@ -80,6 +81,7 @@ public final class NativeRegionEngine {
         assertRenderThread();
         if (gpu != null) gpu.close();
         gpu = null;
+        ++generation; // Never allow old world tickets to match a newly created pipeline.
         if (pipeline != null) pipeline.resetWorld();
         pipeline = null;
         level = null;
@@ -150,7 +152,7 @@ public final class NativeRegionEngine {
             if (!pipeline.commit(prepared, 0)) { fallbackMeshes++; return null; }
             gpu.reconcile(pipeline.activePages());
             nativeUploads++;
-            return new Residency(ticket, key, prepared.page(), state.indexCount(),
+            return new Residency(generation, ticket, key, prepared.page(), state.indexCount(),
                     prepared.indices().offset() / stride,
                     prepared.vertices().offset() / geometry.vertexStride(),
                     geometry.indexBytes(), state.mode());
@@ -172,6 +174,7 @@ public final class NativeRegionEngine {
     public static void replaceSortedIndices(Residency residence, ByteBuffer replacement) {
         assertRenderThread();
         if (residence == null) throw new IllegalArgumentException("Missing native geometry");
+        if (residence.worldGeneration() != generation) return;
         if (replacement == null || replacement.remaining() != residence.indexBytes())
             throw new IllegalArgumentException("Translucent index size changed");
         if (pipeline == null || !pipeline.accepts(residence.ticket())) return;
@@ -182,7 +185,7 @@ public final class NativeRegionEngine {
 
     public static void bind(Residency residence) {
         assertRenderThread();
-        if (residence != null && gpu != null) {
+        if (residence != null && residence.worldGeneration() == generation && gpu != null) {
             BufferUploader.invalidate();
             gpu.bind(residence.page());
         }
@@ -190,13 +193,13 @@ public final class NativeRegionEngine {
 
     public static void draw(Residency residence) {
         assertRenderThread();
-        if (residence == null || gpu == null) return;
+        if (residence == null || residence.worldGeneration() != generation || gpu == null) return;
         gpu.drawOne(residence.page(), residence.count(), residence.firstIndex(), residence.baseVertex());
     }
 
     public static void release(Residency residence) {
         assertRenderThread();
-        if (residence == null || pipeline == null) return;
+        if (residence == null || residence.worldGeneration() != generation || pipeline == null) return;
         if (pipeline.remove(residence.ticket())) gpu.reconcile(pipeline.activePages());
     }
 

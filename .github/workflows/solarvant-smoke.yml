@@ -25,6 +25,13 @@ jobs:
           gradle-version: '8.14.3'
       - name: Extract source
         run: base64 -d solarvant-build/sources.tar.xz.b64 | tar -xJ
+      - name: Stage the actual production Forge JAR for client integration testing
+        if: matrix.loader == 'forge'
+        shell: bash
+        run: |
+          (cd forge && gradle build --no-daemon --console=plain)
+          mkdir -p forge/run/mods
+          find forge/build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' -exec cp '{}' forge/run/mods/ ';'
       - name: Launch Minecraft for startup verification
         shell: bash
         env:

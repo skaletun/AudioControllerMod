@@ -47,7 +47,7 @@ public final class BenchmarkRecorder {
         if (last == 0) { last = now; start = now; return; }
         long elapsed = now - last;
         last = now;
-        if (now - start >= WARMUP && elapsed > 0 && elapsed <= 2_000_000_000L) {
+        if (now - start >= WARMUP && elapsed > 0) {
             if (size < LIMIT) times[size++] = elapsed / 1_000_000f;
         }
         if (now - start >= WARMUP + CAPTURE || size == LIMIT) {
@@ -78,8 +78,15 @@ public final class BenchmarkRecorder {
         }
         double p95 = quantile(sorted, .95);
         double p99 = quantile(sorted, .99);
+        // A true 1% low is the arithmetic mean of the slowest 1% of
+        // instantaneous FPS samples. Reciprocal P99 is NOT the same metric.
+        int tailCount = Math.max(1, (int)Math.ceil(size * 0.01));
+        double lowFps = 0;
+        for (int i = 0; i < tailCount; ++i) {
+            lowFps += 1000.0 / Math.max(0.001, sorted[size - i - 1]);
+        }
         return new Result(size, sum / size, p95, p99,
-                1000.0 / Math.max(.001, p99), spikes, csv.toString());
+                lowFps / tailCount, spikes, csv.toString());
     }
     public static Path save(Result report, Path folder) throws IOException {
         Files.createDirectories(folder);

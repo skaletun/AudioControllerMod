@@ -77,6 +77,8 @@ public final class RegionMeshPipeline {
     private final Map<PoolKey, List<Page>> pools = new HashMap<>();
     private final Map<PageId, Page> pages = new HashMap<>();
     private final Set<Prepared> pending = new HashSet<>();
+    // Incremental GPU page reclamation: no O(all pages) walk on every mesh upload.
+    private final Set<PageId> reclaimedPages = new HashSet<>();
     private long epoch = 1;
     private long serial = 0;
     private int pageSerial = 1;
@@ -99,6 +101,7 @@ public final class RegionMeshPipeline {
         serials.clear();
         pools.clear();
         pages.clear();
+        reclaimedPages.clear();
         resident = 0;
         ++epoch;
     }
@@ -243,6 +246,7 @@ public final class RegionMeshPipeline {
         page.indexArena.free(i);
         if (--page.refs == 0) {
             pages.remove(pageId);
+            reclaimedPages.add(pageId);
             PoolKey pool = new PoolKey(new Region(pageId.x(), pageId.y(), pageId.z()),
                     pageId.layer(), pageId.stride(), pageId.indexStride());
             List<Page> list = pools.get(pool);
@@ -311,6 +315,14 @@ public final class RegionMeshPipeline {
 
     /** Snapshot of pages which the GL backend must keep allocated; reclaim all others. */
     public Set<PageId> activePages() { return Set.copyOf(pages.keySet()); }
+
+    /** Incremental retirement journal; one page is reported at most once. */
+    public Set<PageId> drainReclaimedPages() {
+        if (reclaimedPages.isEmpty()) return Set.of();
+        Set<PageId> removed = Set.copyOf(reclaimedPages);
+        reclaimedPages.clear();
+        return removed;
+    }
 
     public void verify() {
         long sum = 0;

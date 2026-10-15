@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Independent engine unit tests
-        run: bash Solarvant/scripts/test-core.sh
+        run: |\n          bash Solarvant/scripts/test-core.sh\n          python3 Solarvant/scripts/test_benchmarks.py
 
   build:
     runs-on: ubuntu-latest
@@ -48,8 +48,8 @@ jobs:
           mkdir -p dist
           JAR=$(find "Solarvant/$LOADER/build/libs" -type f -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
           test -n "$JAR"
-          cp "$JAR" "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.2.jar"
-          python3 Solarvant/scripts/verify-artifact.py "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.2.jar" "$LOADER"
+          cp "$JAR" "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.3.jar"
+          python3 Solarvant/scripts/verify-artifact.py "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.3.jar" "$LOADER"
       - uses: actions/upload-artifact@v4
         with:
           name: solarvant-dev2-${{ matrix.loader }}

@@ -4,7 +4,7 @@ license = "MIT"
 
 [[mods]]
 modId = "solarvant"
-version = "0.9.0-dev.2"
+version = "0.9.0-dev.3"
 displayName = "Solarvant"
 description = "Client-side frame stability and performance presets for Minecraft 1.21.1"
 authors = "Solarvant"

@@ -73,6 +73,19 @@ public final class CoreTests {
         check(report != null && report.samples() > 5000, "60s raw benchmark data captured");
         check(report.p99Ms() >= 9.99 && report.p99Ms() <= 10.01, "independent P99 computed");
         check(report.csv().startsWith("frame,frametime_ms\n"), "benchmark CSV format");
+        // Include even pathological multi-second stalls; never cherry-pick a
+        // benchmark by discarding the worst frames.
+        BenchmarkRecorder longStall = new BenchmarkRecorder();
+        long anchor = 7_000_000_000L;
+        longStall.begin(anchor);
+        longStall.frame(anchor);
+        longStall.frame(anchor + 11_000_000_000L);
+        longStall.frame(anchor + 13_500_000_000L);
+        longStall.frame(anchor + 14_000_000_000L);
+        for (int i = 1; i <= 57; i++) longStall.frame(anchor + 14_000_000_000L + (long)i * 1_000_000_000L);
+        BenchmarkRecorder.Result stallReport = BenchmarkRecorder.analyze(longStall.take());
+        check(stallReport != null && stallReport.over50ms() >= 1, "multi-second stalls counted, not discarded");
+        check(stallReport.p99Ms() >= 500, "stalls included in 99th percentile");
         Path output = BenchmarkRecorder.save(report, temp.resolve("recordings"));
         check(Files.exists(output), "benchmark data saved");
         FrameMetrics graphMeter = new FrameMetrics();

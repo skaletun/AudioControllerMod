@@ -51,9 +51,9 @@ def verify(path: Path, loader: str) -> None:
             manifest = json.loads(z.read(metadata))
             assert manifest['icon'] == 'assets/solarvant/icon.png'
             assert manifest['id'] == 'solarvant'
-            assert manifest['version'] == '0.9.0-dev.2', manifest['version']
+            assert manifest['version'] == '0.9.0-dev.3', manifest['version']
         if loader != 'fabric':
-            assert '0.9.0-dev.2' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
+            assert '0.9.0-dev.3' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
             assert 'logoFile = "assets/solarvant/icon.png"' in z.read(metadata).decode('utf-8')
         print(f'PASS {loader}: {path.name}, {len(names)} zip entries')
 

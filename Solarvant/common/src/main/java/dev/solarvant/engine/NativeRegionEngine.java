@@ -38,6 +38,7 @@ public final class NativeRegionEngine {
     private static long generation;
     private static long fallbackMeshes;
     private static long nativeUploads;
+    private static long adoptedSectionBuffers;
     private static ByteBuffer generatedIndices = ByteBuffer.allocateDirect(4096).order(ByteOrder.nativeOrder());
 
     public record Residency(long worldGeneration, Ticket ticket, MeshKey key, RegionMeshPipeline.PageId page,
@@ -45,6 +46,12 @@ public final class NativeRegionEngine {
                             VertexFormat.Mode mode) { }
 
     private NativeRegionEngine() { }
+
+    /** Called only when a vanilla terrain VBO is actually replaced. */
+    public static void markSectionBufferAdopted() {
+        assertRenderThread();
+        adoptedSectionBuffers++;
+    }
 
     public static Layer layer(RenderType type) {
         if (type == RenderType.solid()) return Layer.SOLID;
@@ -83,6 +90,7 @@ public final class NativeRegionEngine {
         if (gpu != null) gpu.close();
         gpu = null;
         ++generation; // Never allow old world tickets to match a newly created pipeline.
+        adoptedSectionBuffers = 0;
         if (pipeline != null) pipeline.resetWorld();
         pipeline = null;
         level = null;
@@ -137,7 +145,7 @@ public final class NativeRegionEngine {
         if (pipeline.stats().pages() >= MAX_PAGES && pipeline.get(key) == null) {
             fallbackMeshes++;
             pipeline.removeKey(key);
-            gpu.reconcile(pipeline.activePages());
+            gpu.releasePages(pipeline.drainReclaimedPages());
             return null;
         }
         Ticket ticket = pipeline.begin(key);
@@ -147,13 +155,17 @@ public final class NativeRegionEngine {
         if (prepared == null) {
             fallbackMeshes++;
             pipeline.removeKey(key);
-            gpu.reconcile(pipeline.activePages());
+            gpu.releasePages(pipeline.drainReclaimedPages());
             return null;
         }
         try {
             gpu.upload(prepared, state.format(), vertices, indices);
-            if (!pipeline.commit(prepared, 0)) { fallbackMeshes++; return null; }
-            gpu.reconcile(pipeline.activePages());
+            if (!pipeline.commit(prepared, 0)) {
+                gpu.releasePages(pipeline.drainReclaimedPages());
+                fallbackMeshes++;
+                return null;
+            }
+            gpu.releasePages(pipeline.drainReclaimedPages());
             nativeUploads++;
             return new Residency(generation, ticket, key, prepared.page(), state.indexCount(),
                     prepared.indices().offset() / stride,
@@ -168,7 +180,7 @@ public final class NativeRegionEngine {
             } else if (pipeline.accepts(ticket)) {
                 pipeline.abort(prepared);
             }
-            gpu.reconcile(pipeline.activePages());
+            gpu.releasePages(pipeline.drainReclaimedPages());
             fallbackMeshes++;
             throw failure;
         }
@@ -203,7 +215,7 @@ public final class NativeRegionEngine {
     public static void release(Residency residence) {
         assertRenderThread();
         if (residence == null || residence.worldGeneration() != generation || pipeline == null) return;
-        if (pipeline.remove(residence.ticket())) gpu.reconcile(pipeline.activePages());
+        if (pipeline.remove(residence.ticket())) gpu.releasePages(pipeline.drainReclaimedPages());
     }
 
     public static String debug() {
@@ -211,6 +223,7 @@ public final class NativeRegionEngine {
         RegionMeshPipeline.Stats s = pipeline.stats();
         return "Native GPU: " + s.activeMeshes() + " meshes / " + s.pages() + " pages / "
                 + (s.residentBytes() / 1048576) + " MiB / " + nativeUploads + " uploads"
+                + " / " + adoptedSectionBuffers + " section VBOs active"
                 + (fallbackMeshes > 0 ? " / " + fallbackMeshes + " fallback" : "");
     }
 }

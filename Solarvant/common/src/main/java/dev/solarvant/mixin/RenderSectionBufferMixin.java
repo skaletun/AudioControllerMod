@@ -1,6 +1,7 @@
 package dev.solarvant.mixin;
 
 import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.systems.RenderSystem;
 import dev.solarvant.client.SolarvantClient;
 import dev.solarvant.engine.NativeRegionEngine;
 import dev.solarvant.engine.RegionMeshPipeline.Section;
@@ -35,11 +36,18 @@ public abstract class RenderSectionBufferMixin {
         Section section = new Section(Math.floorDiv(origin.getX(), 16),
                 Math.floorDiv(origin.getY(), 16), Math.floorDiv(origin.getZ(), 16));
         VertexBuffer vbo = buffers.get(type);
-        if (vbo == null) {
+        if (!(vbo instanceof SolarvantVertexBuffer)) {
+            // Vanilla eagerly populates this map with a VertexBuffer for EVERY
+            // terrain layer. Checking only vbo == null silently disables the
+            // entire Solarvant GPU path, even when enabled in settings.
+            // Buffer replacement and GL teardown must stay on the render thread.
+            if (!RenderSystem.isOnRenderThread()) return;
+            if (vbo != null) vbo.close();
             vbo = new SolarvantVertexBuffer(section, layer);
             buffers.put(type, vbo);
+            NativeRegionEngine.markSectionBufferAdopted();
         }
-        if (vbo instanceof SolarvantVertexBuffer managed) managed.updateSection(section);
+        ((SolarvantVertexBuffer)vbo).updateSection(section);
         cir.setReturnValue(vbo);
     }
 }

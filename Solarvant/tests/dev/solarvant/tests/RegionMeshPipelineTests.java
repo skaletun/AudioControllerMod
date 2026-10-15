@@ -47,6 +47,21 @@ public final class RegionMeshPipelineTests {
         yes(p.publishEmpty(p.begin(origin)), "Empty layer removes old mesh");
         yes(p.stats().activeMeshes()==0, "No empty layer draw");
         yes(p.stats().pages()==0 && p.stats().residentBytes()==0, "Empty region freed");
+        // GPU reclamation journal must not re-scan every live page per upload.
+        RegionMeshPipeline reclaim = new RegionMeshPipeline(1 << 20, 1 << 20);
+        MeshKey aKey = new MeshKey(new Section(1, 0, 1), Layer.SOLID);
+        MeshKey bKey = new MeshKey(new Section(2, 0, 1), Layer.SOLID);
+        put(reclaim, aKey, 10, 28);
+        put(reclaim, bKey, 10, 28);
+        PageId sharedPage = reclaim.get(aKey).page();
+        yes(sharedPage.equals(reclaim.get(bKey).page()), "Two meshes share one native page");
+        yes(reclaim.drainReclaimedPages().isEmpty(), "Committed pages are never reclaimed early");
+        reclaim.removeSection(aKey.section());
+        yes(reclaim.drainReclaimedPages().isEmpty(), "Page remains live while another mesh uses it");
+        reclaim.removeSection(bKey.section());
+        yes(reclaim.drainReclaimedPages().equals(java.util.Set.of(sharedPage)), "Final free retires exactly one page");
+        yes(reclaim.drainReclaimedPages().isEmpty(), "Page retirement emitted only once");
+        reclaim.verify();
         // A world swap invalidates every outstanding compile / pending reservation.
         Ticket stale=p.begin(origin);
         Prepared waiting=p.prepare(stale,geom(3,28));

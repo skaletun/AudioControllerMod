@@ -9,7 +9,7 @@
 
 ## Missing before changing the world-renderer path
 
-**The native GPU backend is not yet used by Minecraft's `LevelRenderer`.** The game's `SectionCompiler` and vanilla `VertexBuffer` currently remain active. The new OpenGL class being present in a compiled JAR DOES NOT mean the GPU batching mechanism is active. No average FPS or P99 improvement is attributable to this code yet.
+**The native GPU backend is opt-in via the section `VertexBuffer` path; it is not an independent full `LevelRenderer`.** The game's `SectionCompiler` remains active, and native draws remain one-per-section with vanilla shaders. No average FPS or P99 improvement is established without a measured game-world benchmark.
 
 The next integration must contain all of the following at the same time:
 
@@ -21,7 +21,7 @@ The next integration must contain all of the following at the same time:
 
 Do not advertise Sodium parity or call this release complete until all five gates pass. Running OpenGL only in GitHub Xvfb is not a real-world GPU performance benchmark.
 
-## 0.9.0-dev.2: opt-in live GL 3.3 page rendering
+## 0.9.0-dev.3: opt-in live GL 3.3 page rendering
 
 The render section mixin now installs `SolarvantVertexBuffer` for known vanilla terrain
 layers when `nativeRendererEnabled=true`. The class retains Minecraft's
@@ -38,3 +38,21 @@ pressure tests pass. This mode must not be compared to Sodium as a released
 FPS replacement yet. The GL4.3 multi-draw shader is still not integrated.
 
 The opt-in GL3.3 prototype accepts only `DefaultVertexFormat.BLOCK`. Any custom terrain format falls back to vanilla, preventing incompatible shared VAO layouts on shader/mod packs. Enabling the mode requires a world reload; built buffers are not replaced in-flight.
+
+## 0.9.0-dev.3: residency and measurement fixes
+
+Previous dev.2 did not actually adopt vanilla section buffers: the game's
+render-section map is eagerly populated, so the old `if (vbo == null)`
+condition generally remained false. The enabled renderer now replaces an
+existing vanilla layer buffer on the render thread, and exposes how many
+buffers were adopted. This is not the same as a verified completed frame.
+
+The GPU arena now maintains a set of retired page identifiers: after each
+upload, only retired pages are deleted. There is no full iteration over all
+residents per mesh upload. Unit tests exercise reference counts and repeated
+page retirement.
+
+Measurement tooling preserves >2000 ms stalls, computes 1% low correctly,
+and can compare three or more recordings against Sodium. Optical correctness,
+transparent geometry quality, shader compatibility, P99 latency on 32 chunks,
+and GL4.3 multi-draw are still release blockers.

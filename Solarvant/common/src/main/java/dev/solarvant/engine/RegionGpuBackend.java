@@ -207,6 +207,15 @@ public final class RegionGpuBackend implements AutoCloseable {
         return p;
     }
 
+    /** Reclaim only the GPU pages actually retired by the CPU arena. */
+    public void releasePages(Set<PageId> retired) {
+        renderThread();
+        for (PageId id : retired) {
+            GpuPage page = pages.remove(id);
+            if (page != null) delete(page);
+        }
+    }
+
     /** Call after section evictions, resource reload or world change. */
     public void reconcile(Set<PageId> activePages) {
         renderThread();

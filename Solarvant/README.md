@@ -1,20 +1,42 @@
-# Solarvant 0.9.0-dev.2 — native renderer development
+# Solarvant 0.9.0-dev.3 — GPU residency integration fixes
 
-Java 21 · Minecraft 1.21.1 · Fabric / NeoForge / Forge
+Minecraft Java 1.21.1 · Java 21 · Fabric, NeoForge, Forge.
 
-**This is a DEVELOPMENT BUILD. Not yet a Sodium competitor or a complete new terrain renderer.**
+**Not a production release or a demonstrated Sodium competitor.** This revision
+corrects major problems with the native renderer opt-in path and measurable
+hitching overhead. It does not modify Minecraft's normal graphics settings.
 
-## New code in this iteration
+## Independent systems in current implementation
 
-* Independent `RegionMeshPipeline`: GPU region descriptors, suballocation, rebuild generation tickets, safe async cancellation, translucent-aware draw ordering and section page batching.
-* Independent `RegionGpuBackend`: OpenGL VAO/VBO/IBO region resources, byte-exact uploads, GL3.3 per-section fallback, optional GL4.3 multi-draw submission with shader-contract enforcement. Its integration into `LevelRenderer` has **not yet been performed**, so it does **not** increase in-game FPS in this release.
-* `SectionFrustum`: fail-open AABB/plane section visibility.
-* Extended deterministic core tests including 10,000 randomized world/section lifecycle operations and arena invariants.
+- `SolarvantVertexBuffer` (opt-in): terrain buffer backed by Solarvant GL3.3
+  region storage; other layouts and unsupported layers use vanilla buffers.
+- `RegionMeshPipeline`: world-epoch and generation-aware residency; releases
+  GPU pages incrementally instead of scanning the entire page set each upload.
+- `RegionGpuBackend`: pooled VAO/VBO/EBO and GL3.3 draw path; GL4.3 multi-draw
+  primitives exist but are not integrated into the game world shader.
+- Vanilla screen widgets, a `Ctrl+Y` frame-time monitor and standalone CSV
+  benchmarking with a 10-second warmup + 60-second measurement window.
 
-Old vanilla graphics presets and chunk-distance rewrites remain removed, and the Ctrl+Y performance HUD plus 10s warmup/60s CSV benchmark remain available. Vanilla drawing remains the default for safety. No graphic settings are changed by Solarvant.
+## Corrected in dev.3
 
-## Build
+1. Vanilla pre-creates the per-layer `VertexBuffer` map; the previous Mixin
+   replaced entries only if missing. The enabled GPU path was therefore
+   generally never selected. It now replaces existing vanilla buffers on the
+   render thread and exposes an adoption counter in `Ctrl+Y`.
+2. GPU retirements are collected incrementally, removing the full `Set.copyOf`
+   of all active region pages on every mesh upload.
+3. Benchmark captures no longer discard frames longer than 2 seconds.
+   The reported 1% low is the actual average FPS of the slowest 1% frames,
+   rather than `1000 / P99`.
+4. `scripts/compare-benchmarks.py` compares at least three captures per
+   renderer. Passing one scene does not establish general Sodium superiority.
 
-Use JDK 21 and Gradle 8.14.3. From each loader subdirectory run `gradle build`; run `bash scripts/test-core.sh` in the root for pure-Java tests. See `docs/NATIVE_RENDERER.md` for mandatory remaining renderer integration and testing gates.
+## Build and testing
 
-**Do not interpret a green CI build as proof of performance or visual correctness.**
+Use JDK 21 / Gradle 8.14.3. Run `bash scripts/test-core.sh` and
+`python3 scripts/test_benchmarks.py`, then `gradle build` in each of the
+`fabric`, `neoforge` and `forge` directories.
+
+**The native renderer is disabled by default until it passes real-world
+visual equivalence and GPU performance tests.** Do not treat a green Gradle
+build or virtual-display client startup as a render-world benchmark.

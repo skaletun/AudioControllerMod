@@ -123,6 +123,25 @@ public final class RegionMeshPipeline {
         }
     }
 
+    /** Evict one layer only when the owning compiled generation is still current. */
+    public boolean remove(Ticket owner) {
+        if (!current(owner)) return false;
+        MeshKey key = owner.key();
+        serials.remove(key);
+        StoredMesh old = meshes.remove(key);
+        if (old != null) release(old);
+        return true;
+    }
+
+    public StoredMesh get(MeshKey key) { return meshes.get(key); }
+
+    /** Drop an incompatible replacement and its previous resident mesh safely. */
+    public void removeKey(MeshKey key) {
+        serials.remove(key);
+        StoredMesh old = meshes.remove(key);
+        if (old != null) release(old);
+    }
+
     /** Called if a successful compile contains no geometry for a layer. */
     public boolean publishEmpty(Ticket ticket) {
         if (!current(ticket)) { stale++; return false; }

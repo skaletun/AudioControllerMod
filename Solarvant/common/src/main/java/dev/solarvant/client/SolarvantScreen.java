@@ -55,6 +55,8 @@ public final class SolarvantScreen extends Screen {
             button(left+9+half,y+34,half,Component.literal(c.fastOpaqueFaces?"ON":"OFF"),()->update(()->c.fastOpaqueFaces=!c.fastOpaqueFaces));
             button(left+5,y+68,half,tr("setting.tintCache"),()->update(()->c.cacheSectionTints=!c.cacheSectionTints));
             button(left+9+half,y+68,half,Component.literal(c.cacheSectionTints?"ON":"OFF"),()->update(()->c.cacheSectionTints=!c.cacheSectionTints));
+            button(left+5,y+102,half,Component.literal("GPU Regions (test)"),()->update(()->c.nativeRendererEnabled=!c.nativeRendererEnabled));
+            button(left+9+half,y+102,half,Component.literal(c.nativeRendererEnabled?"EXPERIMENTAL ON":"OFF"),()->update(()->c.nativeRendererEnabled=!c.nativeRendererEnabled));
         } else {
             button(left+20,y,panelWidth-40,tr("metrics.overlay"),()->{SolarvantClient.toggleOverlay(); rebuildWidgets();});
             button(left+20,y+34,panelWidth-40,tr("metrics.mode"),()->{SolarvantClient.toggleCompactOverlay(); rebuildWidgets();});

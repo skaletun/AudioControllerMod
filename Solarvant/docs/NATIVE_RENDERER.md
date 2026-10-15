@@ -20,3 +20,19 @@ The next integration must contain all of the following at the same time:
 5. In-game visual golden-image comparisons at all vanilla graphics settings and with modded render layers, plus representative 32-chunk world generation and stable-scene 60-second benchmarks on a Ryzen 5 5600, RTX 4060 8 GB and 16 GB RAM. Repeat 3–5 times, compare median, P95, P99, 1% lows to Vanilla AND Sodium. No silent graphic downgrade.
 
 Do not advertise Sodium parity or call this release complete until all five gates pass. Running OpenGL only in GitHub Xvfb is not a real-world GPU performance benchmark.
+
+## 0.9.0-dev.2: opt-in live GL 3.3 page rendering
+
+The render section mixin now installs `SolarvantVertexBuffer` for known vanilla terrain
+layers when `nativeRendererEnabled=true`. The class retains Minecraft's
+`VertexBuffer.drawWithShader` uniform/fog/lightmap pipeline, but substitutes a
+shared GPU page with `glDrawElementsBaseVertex`. Normal vertex formats and
+unsupported layers retain vanilla fallback; translucency index-only resort is
+updated in the shared page without uploading the entire vertex array. The
+fallback continues to use the original game rendering path. Buffer pages are
+reclaimed after section ownership ends and at world change.
+
+This is a live **region-storage/GL3.3 rendering prototype**, not full multi-draw.
+Default OFF until on-hardware visual equivalence, mixed layers, and memory
+pressure tests pass. This mode must not be compared to Sodium as a released
+FPS replacement yet. The GL4.3 multi-draw shader is still not integrated.

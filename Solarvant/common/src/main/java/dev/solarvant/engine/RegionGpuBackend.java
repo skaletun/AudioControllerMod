@@ -68,7 +68,7 @@ public final class RegionGpuBackend implements AutoCloseable {
         int vbo = GL15.glGenBuffers();
         int ibo = GL15.glGenBuffers();
         try {
-            GL30.glBindVertexArray(vao);
+            RenderSystem.glBindVertexArray(vao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, (long)vertexPageBytes, GL15.GL_DYNAMIC_DRAW);
             GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ibo);
@@ -83,7 +83,7 @@ public final class RegionGpuBackend implements AutoCloseable {
             GL30.glDeleteVertexArrays(vao);
             throw ex;
         } finally {
-            GL30.glBindVertexArray(0);
+            RenderSystem.glBindVertexArray(0);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         }
     }
@@ -100,14 +100,14 @@ public final class RegionGpuBackend implements AutoCloseable {
                 || (long)mesh.indices().offset()+indices.remaining() > p.indexCapacity())
             throw new IllegalArgumentException("GPU mesh offset outside region page");
         try {
-            GL30.glBindVertexArray(p.vertexArray());
+            RenderSystem.glBindVertexArray(p.vertexArray());
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, p.vertexBuffer());
             GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, mesh.vertices().offset(), vertices);
             GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, p.indexBuffer());
             GL15.glBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, mesh.indices().offset(), indices);
         } finally {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-            GL30.glBindVertexArray(0);
+            RenderSystem.glBindVertexArray(0);
         }
     }
 
@@ -116,7 +116,7 @@ public final class RegionGpuBackend implements AutoCloseable {
         renderThread();
         if (batch.draws().isEmpty()) return 0;
         GpuPage p = requirePage(batch.page());
-        GL30.glBindVertexArray(p.vertexArray());
+        RenderSystem.glBindVertexArray(p.vertexArray());
         try {
             int type = batch.page().indexStride()==2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT;
             for (Draw d: batch.draws()) {
@@ -127,7 +127,7 @@ public final class RegionGpuBackend implements AutoCloseable {
             }
             return batch.draws().size();
         } finally {
-            GL30.glBindVertexArray(0);
+            RenderSystem.glBindVertexArray(0);
         }
     }
 
@@ -164,15 +164,41 @@ public final class RegionGpuBackend implements AutoCloseable {
             commands.putInt(idx);
         }
         commands.flip();
-        GL30.glBindVertexArray(p.vertexArray());
+        RenderSystem.glBindVertexArray(p.vertexArray());
         try {
             GL43.glMultiDrawElementsIndirect(GL15.GL_TRIANGLES,
                     batch.page().indexStride()==2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT,
                     commands, n, 0);
         } finally {
-            GL30.glBindVertexArray(0);
+            RenderSystem.glBindVertexArray(0);
         }
         return n;
+    }
+
+    /** Draw a live page allocation using the caller's already active vanilla shader. */
+    public void drawOne(PageId page, int indexCount, int firstIndex, int baseVertex) {
+        renderThread();
+        GpuPage p = requirePage(page);
+        RenderSystem.glBindVertexArray(p.vertexArray());
+        GL32.glDrawElementsBaseVertex(GL15.GL_TRIANGLES, indexCount,
+                page.indexStride() == 2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT,
+                (long)firstIndex * page.indexStride(), baseVertex);
+    }
+
+    /** Replace already resident transparent indices without reallocating vertex data. */
+    public void updateIndices(PageId page, int offset, ByteBuffer indices) {
+        renderThread();
+        GpuPage p = requirePage(page);
+        if (offset < 0 || (long)offset + indices.remaining() > p.indexCapacity())
+            throw new IllegalArgumentException("Index upload outside page");
+        RenderSystem.glBindVertexArray(p.vertexArray());
+        GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, p.indexBuffer());
+        GL15.glBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, offset, indices);
+    }
+
+    public void bind(PageId page) {
+        renderThread();
+        RenderSystem.glBindVertexArray(requirePage(page).vertexArray());
     }
 
     private GpuPage requirePage(PageId id) {

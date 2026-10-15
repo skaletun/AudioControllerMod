@@ -8,7 +8,9 @@
     "MinecraftFrameMixin",
     "OpaqueFaceMixin",
     "SectionCompilerMixin",
-    "BlockColorsMixin"
+    "BlockColorsMixin",
+    "VertexBufferStateAccessor",
+    "RenderSectionBufferMixin"
   ],
   "injectors": {
     "defaultRequire": 1

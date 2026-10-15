@@ -1,4 +1,4 @@
-# Solarvant 0.9.0-dev.1 — native renderer development
+# Solarvant 0.9.0-dev.2 — native renderer development
 
 Java 21 · Minecraft 1.21.1 · Fabric / NeoForge / Forge
 

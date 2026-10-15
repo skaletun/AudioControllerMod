@@ -66,6 +66,10 @@ public final class SolarvantClient {
         if (!started || config == null || !config.engineEnabled) return "OFF";
         return renderer.equals("Vanilla") ? "SOLARVANT MESHING" : "EXTERNAL RENDERER";
     }
+    public static boolean isNativeRendererEnabled() {
+        return isEngineEnabled() && config != null && config.nativeRendererEnabled;
+    }
+    public static String nativeSummary() { return dev.solarvant.engine.NativeRegionEngine.debug(); }
     public static String uploadSummary() { return "VANILLA / UNTHROTTLED"; }
     public static String benchmarkStatus() { return benchmarkStatus; }
     public static void startBenchmark() {
@@ -149,6 +153,7 @@ public final class SolarvantClient {
 
     public static void onFrame() {
         Minecraft mc = Minecraft.getInstance();
+        if (mc != null) dev.solarvant.engine.NativeRegionEngine.resetIfWorldChanges();
         if (mc == null || mc.level == null) {
             BENCHMARK.stop();
             METER.resetClock();

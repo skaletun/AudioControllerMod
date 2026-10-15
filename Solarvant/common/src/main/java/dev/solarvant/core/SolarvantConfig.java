@@ -14,6 +14,8 @@ public final class SolarvantConfig {
     public boolean hudVisible;
     public boolean compactHud;
     public boolean engineEnabled = true;
+    /** Opt-in until hardware screenshots and translucent sorting are validated. */
+    public boolean nativeRendererEnabled = false;
     public boolean fastOpaqueFaces = true;
     public boolean cacheSectionTints = true;
     private final Path file;
@@ -38,6 +40,7 @@ public final class SolarvantConfig {
             hudVisible = Boolean.parseBoolean(p.getProperty("hudVisible", "false"));
             compactHud = Boolean.parseBoolean(p.getProperty("compactHud", "false"));
             engineEnabled = Boolean.parseBoolean(p.getProperty("engineEnabled", "true"));
+            nativeRendererEnabled = Boolean.parseBoolean(p.getProperty("nativeRendererEnabled", "false"));
             fastOpaqueFaces = Boolean.parseBoolean(p.getProperty("fastOpaqueFaces", "true"));
             cacheSectionTints = Boolean.parseBoolean(p.getProperty("cacheSectionTints", "true"));
             // Previous GPU pacing, particle/foliage reduction and vanilla options ignored.
@@ -54,6 +57,7 @@ public final class SolarvantConfig {
         p.setProperty("hudVisible", Boolean.toString(hudVisible));
         p.setProperty("compactHud", Boolean.toString(compactHud));
         p.setProperty("engineEnabled", Boolean.toString(engineEnabled));
+        p.setProperty("nativeRendererEnabled", Boolean.toString(nativeRendererEnabled));
         p.setProperty("fastOpaqueFaces", Boolean.toString(fastOpaqueFaces));
         p.setProperty("cacheSectionTints", Boolean.toString(cacheSectionTints));
         try {

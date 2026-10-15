@@ -9,6 +9,8 @@
     "OpaqueFaceMixin",
     "SectionCompilerMixin",
     "BlockColorsMixin",
+    "VertexBufferStateAccessor",
+    "RenderSectionBufferMixin",
     "ForgeGuiOverlayMixin"
   ],
   "injectors": {

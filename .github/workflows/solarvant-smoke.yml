@@ -2,7 +2,7 @@ name: Solarvant client startup smoke
 on:
   push:
     branches: [solarvant-mc1.21.1-build]
-    paths: [.github/workflows/solarvant-smoke.yml]
+    paths: ['.github/workflows/solarvant-smoke.yml', 'solarvant-build/**']
   workflow_dispatch:
 permissions:
   contents: read

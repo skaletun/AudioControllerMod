@@ -20,7 +20,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Independent engine unit tests
-        run: |\n          bash Solarvant/scripts/test-core.sh\n          python3 Solarvant/scripts/test_benchmarks.py
+        run: |
+          bash Solarvant/scripts/test-core.sh
+          python3 Solarvant/scripts/test_benchmarks.py
 
   build:
     runs-on: ubuntu-latest

@@ -54,13 +54,13 @@ jobs:
             sleep 2
           done
           sleep 25
-          xdotool mousemove 640 287 click 1
+          xdotool mousemove 640 238 click 1
           sleep 10
           import -window root screenshots/world-list.png || true
-          xdotool mousemove 635 677 click 1
+          xdotool mousemove 640 690 click 1
           sleep 10
           import -window root screenshots/world-create.png || true
-          xdotool mousemove 630 650 click 1
+          xdotool mousemove 640 690 click 1
           sleep 120
           import -window root screenshots/world-render.png || true
           echo "World directories:"

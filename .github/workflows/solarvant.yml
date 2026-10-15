@@ -68,7 +68,8 @@ jobs:
           jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/mixin/SectionUploadMixin.class'
           jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/mixin/OpaqueFaceMixin.class'
           jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/engine/CanopyMeshCuller.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/engine/RenderBudgetGovernor.class'\n          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/engine/ReciprocalFaceCache.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/engine/RenderBudgetGovernor.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.7.0.jar" | grep -q 'dev/solarvant/engine/ReciprocalFaceCache.class'
       - name: Check all packaging and Mixin metadata
         env:
           LOADER: ${{ matrix.loader }}

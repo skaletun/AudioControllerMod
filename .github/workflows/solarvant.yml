@@ -1,4 +1,4 @@
-name: Solarvant 0.5.0 1.21.1 three-loader build
+name: Solarvant 0.6.0 1.21.1 three-loader build
 on:
   push:
     branches: [solarvant-mc1.21.1-build]
@@ -53,25 +53,27 @@ jobs:
           find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' -print
           jarpath=$(find "${LOADER}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
           test -n "$jarpath"
-          cp "$jarpath" "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar"
+          cp "$jarpath" "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar"
       - name: Validate compiled client mixins
         env:
           LOADER: ${{ matrix.loader }}
         shell: bash
         run: |
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/mixin/BlockEntityRenderMixin.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/core/ParticlePressureGovernor.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/client/SolarvantOverlay.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/client/SolarvantKeybind.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/engine/UploadPacer.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/engine/FaceAccelerator.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/mixin/SectionUploadMixin.class'
-          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" | grep -q 'dev/solarvant/mixin/OpaqueFaceMixin.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/mixin/BlockEntityRenderMixin.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/core/ParticlePressureGovernor.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/client/SolarvantOverlay.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/client/SolarvantKeybind.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/engine/UploadPacer.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/engine/FaceAccelerator.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/mixin/SectionUploadMixin.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/mixin/OpaqueFaceMixin.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/engine/CanopyMeshCuller.class'
+          jar tf "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" | grep -q 'dev/solarvant/engine/RenderBudgetGovernor.class'
       - name: Check all packaging and Mixin metadata
         env:
           LOADER: ${{ matrix.loader }}
         shell: bash
-        run: python3 scripts/verify-artifact.py "dist/solarvant-${LOADER}-mc1.21.1-0.5.0.jar" "${LOADER}"
+        run: python3 scripts/verify-artifact.py "dist/solarvant-${LOADER}-mc1.21.1-0.6.0.jar" "${LOADER}"
       - uses: actions/upload-artifact@v4
         with:
           name: solarvant-${{ matrix.loader }}-mc1.21.1

@@ -1,0 +1,97 @@
+name: Solarvant native GPU engine dev.2
+on:
+  push:
+    branches: [solarvant-mc1.21.1-build]
+    paths:
+      - Solarvant/**
+      - .github/workflows/solarvant-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Independent engine unit tests
+        run: bash Solarvant/scripts/test-core.sh
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, neoforge, forge]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Compile ${{ matrix.loader }}
+        working-directory: Solarvant/${{ matrix.loader }}
+        run: gradle clean build --no-daemon --stacktrace
+      - name: Validate and prepare JAR
+        env:
+          LOADER: ${{ matrix.loader }}
+        shell: bash
+        run: |
+          mkdir -p dist
+          JAR=$(find "Solarvant/$LOADER/build/libs" -type f -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
+          test -n "$JAR"
+          cp "$JAR" "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.2.jar"
+          python3 Solarvant/scripts/verify-artifact.py "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.2.jar" "$LOADER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solarvant-dev2-${{ matrix.loader }}
+          path: dist/*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+  startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, neoforge, forge]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Start Minecraft 1.21.1 under Mesa/Xvfb
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+          LOADER: ${{ matrix.loader }}
+        shell: bash
+        run: |
+          set +e
+          (cd "Solarvant/$LOADER" && timeout 180 xvfb-run -a gradle runClient --no-daemon --console=plain) > startup.log 2>&1
+          STATUS=$?
+          set -e
+          tail -n 80 startup.log
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then exit 1; fi
+          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|FATAL|Exception in thread|NoSuchMethodError' startup.log; then exit 1; fi
+          grep -Eiq 'Render thread|Setting user|OpenGL|LWJGL' startup.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: solarvant-startup-dev2-${{ matrix.loader }}
+          path: startup.log
+          retention-days: 14

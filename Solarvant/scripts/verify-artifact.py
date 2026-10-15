@@ -16,6 +16,10 @@ def verify(path: Path, loader: str) -> None:
             'dev/solarvant/engine/RegionArena.class',
             'dev/solarvant/engine/RegionMeshPipeline.class',
             'dev/solarvant/engine/RegionGpuBackend.class',
+            'dev/solarvant/engine/NativeRegionEngine.class',
+            'dev/solarvant/engine/SolarvantVertexBuffer.class',
+            'dev/solarvant/mixin/VertexBufferStateAccessor.class',
+            'dev/solarvant/mixin/RenderSectionBufferMixin.class',
             'dev/solarvant/engine/SectionFrustum.class',
             'dev/solarvant/engine/ReciprocalFaceCache.class',
             'assets/solarvant/icon.png',
@@ -36,6 +40,7 @@ def verify(path: Path, loader: str) -> None:
         mixin = json.loads(z.read(mixin_file))
         client = set(mixin['client'])
         assert 'SectionCompilerMixin' in client and 'BlockColorsMixin' in client, client
+        assert 'RenderSectionBufferMixin' in client and 'VertexBufferStateAccessor' in client, client
         for forbidden in ['SectionUploadMixin','ParticleEngineMixin','BlockEntityRenderMixin']:
             assert forbidden not in client, f'{forbidden} should never intercept the game' 
         assert (loader != 'forge') == ('ForgeGuiOverlayMixin' not in client)
@@ -46,9 +51,9 @@ def verify(path: Path, loader: str) -> None:
             manifest = json.loads(z.read(metadata))
             assert manifest['icon'] == 'assets/solarvant/icon.png'
             assert manifest['id'] == 'solarvant'
-            assert manifest['version'] == '0.9.0-dev.1', manifest['version']
+            assert manifest['version'] == '0.9.0-dev.2', manifest['version']
         if loader != 'fabric':
-            assert '0.9.0-dev.1' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
+            assert '0.9.0-dev.2' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
             assert 'logoFile = "assets/solarvant/icon.png"' in z.read(metadata).decode('utf-8')
         print(f'PASS {loader}: {path.name}, {len(names)} zip entries')
 

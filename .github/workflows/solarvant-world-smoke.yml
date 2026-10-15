@@ -43,6 +43,7 @@ jobs:
           hudVisible=true
           compactHud=false
           EOF
+          printf 'onboardAccessibility:false\nrenderDistance:32\nsimulationDistance:12\n' > Solarvant/fabric/run/options.txt
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >xvfb.log 2>&1 &
           XVFB_PID=$!
           trap 'kill $XVFB_PID 2>/dev/null || true' EXIT
@@ -53,11 +54,17 @@ jobs:
             if xdotool search --onlyvisible --name 'Minecraft' >/dev/null 2>&1; then break; fi
             sleep 2
           done
-          sleep 25
-          xdotool mousemove 640 238 click 1
+          sleep 15
+          WIN=$(xdotool search --onlyvisible --name 'Minecraft' | head -n 1)
+          if [ -z "$WIN" ]; then echo "Minecraft window not found"; exit 1; fi
+          xdotool windowsize "$WIN" 1280 720
+          xdotool windowmove "$WIN" 0 0
+          sleep 5
+          import -window root screenshots/main-menu.png || true
+          xdotool mousemove 640 330 click 1
           sleep 10
           import -window root screenshots/world-list.png || true
-          xdotool mousemove 640 690 click 1
+          xdotool mousemove 640 660 click 1
           sleep 10
           import -window root screenshots/world-create.png || true
           xdotool mousemove 640 690 click 1

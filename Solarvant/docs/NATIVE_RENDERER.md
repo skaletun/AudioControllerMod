@@ -21,7 +21,7 @@ The next integration must contain all of the following at the same time:
 
 Do not advertise Sodium parity or call this release complete until all five gates pass. Running OpenGL only in GitHub Xvfb is not a real-world GPU performance benchmark.
 
-## 0.9.0-dev.3: opt-in live GL 3.3 page rendering
+## 0.9.0-dev.4: opt-in live GL 3.3 page rendering
 
 The render section mixin now installs `SolarvantVertexBuffer` for known vanilla terrain
 layers when `nativeRendererEnabled=true`. The class retains Minecraft's
@@ -39,7 +39,7 @@ FPS replacement yet. The GL4.3 multi-draw shader is still not integrated.
 
 The opt-in GL3.3 prototype accepts only `DefaultVertexFormat.BLOCK`. Any custom terrain format falls back to vanilla, preventing incompatible shared VAO layouts on shader/mod packs. Enabling the mode requires a world reload; built buffers are not replaced in-flight.
 
-## 0.9.0-dev.3: residency and measurement fixes
+## 0.9.0-dev.4: residency and measurement fixes
 
 Previous dev.2 did not actually adopt vanilla section buffers: the game's
 render-section map is eagerly populated, so the old `if (vbo == null)`

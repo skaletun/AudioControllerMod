@@ -4,6 +4,7 @@ on:
     branches: [solarvant-mc1.21.1-build]
     paths:
       - .github/workflows/solarvant-world-smoke.yml
+      - 'Solarvant/**'
   workflow_dispatch:
 
 permissions:
@@ -83,7 +84,11 @@ jobs:
             exit 1
           fi
           if grep -Eqi "Stopping!|Stopping server|Stopping singleplayer server" client.log; then echo "World stopped unexpectedly"; exit 1; fi
-          echo "Generated world confirmed without detected rendering exceptions"
+          if ! grep -q "Native resident terrain mesh uploaded:" client.log; then
+            echo "Native GPU integration was not exercised; refuse false-positive world test"
+            exit 1
+          fi
+          echo "Generated world confirmed with native GPU mesh uploads and no detected rendering exceptions"
           kill $CLIENT_PID 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()

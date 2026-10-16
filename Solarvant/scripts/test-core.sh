@@ -11,10 +11,13 @@ javac --release 21 -d .tmp-solarvant-tests \
   common/src/main/java/dev/solarvant/engine/SectionTintCache.java \
   common/src/main/java/dev/solarvant/engine/RegionArena.java \
   common/src/main/java/dev/solarvant/engine/RegionMeshPipeline.java \
+  common/src/main/java/dev/solarvant/engine/QuadIndexCache.java \
   common/src/main/java/dev/solarvant/engine/SectionFrustum.java \
   common/src/main/java/dev/solarvant/engine/ReciprocalFaceCache.java \
   tests/dev/solarvant/tests/CoreTests.java \
-  tests/dev/solarvant/tests/RegionMeshPipelineTests.java
+  tests/dev/solarvant/tests/RegionMeshPipelineTests.java \
+  tests/dev/solarvant/tests/QuadIndexCacheTests.java
 java -cp .tmp-solarvant-tests dev.solarvant.tests.CoreTests
 
 java -cp .tmp-solarvant-tests dev.solarvant.tests.RegionMeshPipelineTests
+java -cp .tmp-solarvant-tests dev.solarvant.tests.QuadIndexCacheTests

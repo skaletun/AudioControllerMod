@@ -1,4 +1,4 @@
-# Solarvant 0.9.0-dev.3 — GPU residency integration fixes
+# Solarvant 0.9.0-dev.4 — GPU residency integration fixes
 
 Minecraft Java 1.21.1 · Java 21 · Fabric, NeoForge, Forge.
 

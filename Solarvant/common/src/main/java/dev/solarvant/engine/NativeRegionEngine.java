@@ -18,7 +18,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * Render-thread section residency driver. Owns GPU regions and keeps every
@@ -39,7 +38,8 @@ public final class NativeRegionEngine {
     private static long fallbackMeshes;
     private static long nativeUploads;
     private static long adoptedSectionBuffers;
-    private static ByteBuffer generatedIndices = ByteBuffer.allocateDirect(4096).order(ByteOrder.nativeOrder());
+    private static final QuadIndexCache QUAD_INDICES = new QuadIndexCache();
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("Solarvant/Renderer");
 
     public record Residency(long worldGeneration, Ticket ticket, MeshKey key, RegionMeshPipeline.PageId page,
                             int count, int firstIndex, int baseVertex, int indexBytes,
@@ -96,30 +96,6 @@ public final class NativeRegionEngine {
         level = null;
     }
 
-    private static ByteBuffer makeQuadIndices(int vertices, int stride) {
-        int quads = vertices / 4;
-        int bytes = Math.multiplyExact(Math.multiplyExact(quads, 6), stride);
-        if (generatedIndices.capacity() < bytes) {
-            int capacity = generatedIndices.capacity();
-            while (capacity < bytes) capacity = Math.multiplyExact(capacity, 2);
-            generatedIndices = ByteBuffer.allocateDirect(capacity).order(ByteOrder.nativeOrder());
-        }
-        generatedIndices.clear().limit(bytes);
-        for (int q = 0; q < quads; ++q) {
-            int n = q * 4;
-            if (stride == 2) {
-                generatedIndices.putShort((short)n).putShort((short)(n + 1))
-                        .putShort((short)(n + 2)).putShort((short)(n + 2))
-                        .putShort((short)(n + 3)).putShort((short)n);
-            } else {
-                generatedIndices.putInt(n).putInt(n + 1).putInt(n + 2)
-                        .putInt(n + 2).putInt(n + 3).putInt(n);
-            }
-        }
-        generatedIndices.flip();
-        return generatedIndices;
-    }
-
     /** Null means vanilla must upload and draw, with no partially committed mesh. */
     public static Residency tryUpload(Section section, Layer layer, MeshData mesh) {
         assertRenderThread();
@@ -136,7 +112,7 @@ public final class NativeRegionEngine {
         if (stride != 2 && stride != 4) return null;
         if (stride == 2 && state.vertexCount() > 65535) return null;
         ByteBuffer indices = mesh.indexBuffer();
-        if (indices == null) indices = makeQuadIndices(state.vertexCount(), stride);
+        if (indices == null) indices = QUAD_INDICES.quadTriangles(state.vertexCount(), stride);
         if (indices.remaining() != state.indexCount() * stride) return null;
         initialize();
         if (pipeline == null || gpu == null) return null;
@@ -167,6 +143,10 @@ public final class NativeRegionEngine {
             }
             gpu.releasePages(pipeline.drainReclaimedPages());
             nativeUploads++;
+            if (nativeUploads == 1 || nativeUploads % 4096 == 0) {
+                LOGGER.info("Native resident terrain mesh uploaded: {} (GPU pages: {}, world epoch: {})",
+                        nativeUploads, pipeline.stats().pages(), generation);
+            }
             return new Residency(generation, ticket, key, prepared.page(), state.indexCount(),
                     prepared.indices().offset() / stride,
                     prepared.vertices().offset() / geometry.vertexStride(),

@@ -24,6 +24,7 @@ def verify(path: Path, loader: str) -> None:
             'dev/solarvant/engine/SectionFrustum.class',
             'dev/solarvant/engine/ReciprocalFaceCache.class',
             'assets/solarvant/icon.png',
+            'pack.mcmeta',
             'dev/solarvant/mixin/SectionCompilerMixin.class',
             'dev/solarvant/mixin/BlockColorsMixin.class',
             'dev/solarvant/client/SolarvantOverlay.class',
@@ -32,6 +33,8 @@ def verify(path: Path, loader: str) -> None:
             'assets/solarvant/lang/en_us.json',
             'assets/solarvant/lang/ru_ru.json',
         ]
+        pack = json.loads(z.read('pack.mcmeta')) if 'pack.mcmeta' in names else None
+        assert pack is not None and pack['pack']['pack_format'] == 34, f'{loader}: invalid resource pack metadata'
         missing = [name for name in required if name not in names]
         if missing:
             raise AssertionError(f'{path} missing: {missing}')

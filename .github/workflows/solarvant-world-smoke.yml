@@ -17,7 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        loader: [fabric, neoforge, forge]
+        include:
+          - {loader: fabric, chunks: 8}
+          - {loader: fabric, chunks: 32}
+          - {loader: neoforge, chunks: 32}
+          - {loader: forge, chunks: 32}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -38,6 +42,7 @@ jobs:
           GALLIUM_DRIVER: llvmpipe
           DISPLAY: ':99'
           LOADER: ${{ matrix.loader }}
+          CHUNKS: ${{ matrix.chunks }}
         run: |
           set -euo pipefail
           WORK_DIR="Solarvant/$LOADER/run"
@@ -50,7 +55,7 @@ jobs:
           hudVisible=true
           compactHud=false
           EOF
-          printf 'onboardAccessibility:false\nrenderDistance:32\nsimulationDistance:12\n' > "$WORK_DIR/options.txt"
+          printf 'onboardAccessibility:false\nrenderDistance:%s\nsimulationDistance:12\n' "$CHUNKS" > "$WORK_DIR/options.txt"
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >xvfb.log 2>&1 &
           XVFB_PID=$!
           trap 'kill $XVFB_PID 2>/dev/null || true' EXIT
@@ -106,7 +111,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: solarvant-native-world-${{ matrix.loader }}
+          name: solarvant-native-world-${{ matrix.loader }}-${{ matrix.chunks }}chunks
           path: |
             screenshots/*.png
             client.log

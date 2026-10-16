@@ -1,4 +1,4 @@
-name: Solarvant in-world native renderer smoke
+name: Solarvant in-world native renderer verification
 on:
   push:
     branches: [solarvant-mc1.21.1-build]
@@ -11,9 +11,13 @@ permissions:
   contents: read
 
 jobs:
-  fabric-world-smoke:
+  native-world:
     runs-on: ubuntu-latest
     timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, neoforge, forge]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,20 +27,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.3'
-      - name: Install display automation tools
+      - name: Install software OpenGL and UI test tools
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb xdotool imagemagick libgl1-mesa-dri
-      - name: Enable native renderer and launch client
+      - name: Generate a world with native GPU residency enabled
         shell: bash
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
           GALLIUM_DRIVER: llvmpipe
           DISPLAY: ':99'
+          LOADER: ${{ matrix.loader }}
         run: |
           set -euo pipefail
-          mkdir -p Solarvant/fabric/run/config screenshots
-          cat > Solarvant/fabric/run/config/solarvant.properties <<'EOF'
+          WORK_DIR="Solarvant/$LOADER/run"
+          mkdir -p "$WORK_DIR/config" screenshots
+          cat > "$WORK_DIR/config/solarvant.properties" <<'EOF'
           engineEnabled=true
           nativeRendererEnabled=true
           fastOpaqueFaces=true
@@ -44,56 +50,63 @@ jobs:
           hudVisible=true
           compactHud=false
           EOF
-          printf 'onboardAccessibility:false\nrenderDistance:32\nsimulationDistance:12\n' > Solarvant/fabric/run/options.txt
+          printf 'onboardAccessibility:false\nrenderDistance:32\nsimulationDistance:12\n' > "$WORK_DIR/options.txt"
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >xvfb.log 2>&1 &
           XVFB_PID=$!
           trap 'kill $XVFB_PID 2>/dev/null || true' EXIT
           sleep 3
-          (cd Solarvant/fabric && timeout 500 gradle runClient --no-daemon --console=plain) > client.log 2>&1 &
+          (cd "Solarvant/$LOADER" && timeout 500 gradle runClient --no-daemon --console=plain) > client.log 2>&1 &
           CLIENT_PID=$!
           for attempt in $(seq 1 100); do
             if xdotool search --onlyvisible --name 'Minecraft' >/dev/null 2>&1; then break; fi
             sleep 2
           done
           sleep 15
-          WIN=$(xdotool search --onlyvisible --name 'Minecraft' | head -n 1)
+          WIN=$(xdotool search --onlyvisible --name 'Minecraft' | head -n 1 || true)
           if [ -z "$WIN" ]; then echo "Minecraft window not found"; exit 1; fi
           xdotool windowsize "$WIN" 1280 720
           xdotool windowmove "$WIN" 0 0
+          xdotool windowactivate --sync "$WIN" || true
           sleep 5
-          import -window root screenshots/main-menu.png || true
+          import -window root screenshots/main-menu.png
           xdotool mousemove 640 330 click 1
           sleep 10
-          import -window root screenshots/world-list.png || true
+          import -window root screenshots/world-list.png
           xdotool mousemove 400 670 click 1
           sleep 10
-          import -window root screenshots/world-create.png || true
+          import -window root screenshots/world-create.png
           xdotool mousemove 400 670 click 1
-          sleep 120
-          import -window root screenshots/world-render.png || true
-          echo "World directories:"
-          find Solarvant/fabric/run/saves -maxdepth 2 -name level.dat -print || true
-          grep -E 'integrated server|Preparing spawn|Loaded [0-9]+ advancements|Started integrated' client.log | tail -15 || true
-          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError|Reported exception|Rendering screen|Rendering level|Cannot read field|java.lang.NullPointerException|Crash report saved' client.log; then
-            echo "Client startup error detected"
-            tail -80 client.log
+          sleep 140
+          import -window root screenshots/world-render.png
+          echo "World files:"
+          find "$WORK_DIR/saves" -maxdepth 2 -name level.dat -print || true
+          grep -E 'Preparing spawn|Loaded [0-9]+ advancements|Native resident terrain mesh uploaded' client.log | tail -20 || true
+          if ! find "$WORK_DIR/saves" -maxdepth 2 -name level.dat -print | grep -q level.dat; then
+            echo "World creation failed"
             exit 1
           fi
-          if ! find Solarvant/fabric/run/saves -maxdepth 2 -name level.dat | grep -q level.dat; then
-            echo "Could not verify an actual generated world; inspect screenshots"
+          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError|Reported exception|Rendering screen|Rendering level|Cannot read field|java.lang.NullPointerException|Crash report saved|Stopping singleplayer server' client.log; then
+            echo "Detected client render error or unplanned shutdown"
+            grep -Ei 'Exception|Crash|Stopping singleplayer|MixinApplyError' client.log | tail -50 || true
             exit 1
           fi
-          if grep -Eqi "Stopping!|Stopping server|Stopping singleplayer server" client.log; then echo "World stopped unexpectedly"; exit 1; fi
-          if ! grep -q "Native resident terrain mesh uploaded:" client.log; then
-            echo "Native GPU integration was not exercised; refuse false-positive world test"
+          if ! grep -q 'Native resident terrain mesh uploaded:' client.log; then
+            echo "Native backend was not exercised; reject false-positive smoke"
             exit 1
           fi
-          echo "Generated world confirmed with native GPU mesh uploads and no detected rendering exceptions"
-          kill $CLIENT_PID 2>/dev/null || true
+          # A completely blank framebuffer does not constitute visual evidence.
+          MEAN=$(identify -format '%[fx:mean]' screenshots/world-render.png)
+          python3 - "$MEAN" <<'PYTEST'
+          import sys
+          value = float(sys.argv[1])
+          assert 0.02 < value < 0.98, f"Blank or overexposed framebuffer ({value})"
+          PYTEST
+          echo "PASS: generated world, native GPU allocations and non-empty frame without reported crash"
+          kill "$CLIENT_PID" 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: solarvant-dev3-world-smoke-evidence
+          name: solarvant-native-world-${{ matrix.loader }}
           path: |
             screenshots/*.png
             client.log

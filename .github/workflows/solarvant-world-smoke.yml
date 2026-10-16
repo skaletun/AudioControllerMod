@@ -73,7 +73,7 @@ jobs:
           echo "World directories:"
           find Solarvant/fabric/run/saves -maxdepth 2 -name level.dat -print || true
           grep -E 'integrated server|Preparing spawn|Loaded [0-9]+ advancements|Started integrated' client.log | tail -15 || true
-          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError' client.log; then
+          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError|Reported exception|Rendering screen|Rendering level|Cannot read field|java.lang.NullPointerException|Crash report saved' client.log; then
             echo "Client startup error detected"
             tail -80 client.log
             exit 1
@@ -82,7 +82,8 @@ jobs:
             echo "Could not verify an actual generated world; inspect screenshots"
             exit 1
           fi
-          echo "Generated world confirmed"
+          if grep -Eqi "Stopping!|Stopping server|Stopping singleplayer server" client.log; then echo "World stopped unexpectedly"; exit 1; fi
+          echo "Generated world confirmed without detected rendering exceptions"
           kill $CLIENT_PID 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()

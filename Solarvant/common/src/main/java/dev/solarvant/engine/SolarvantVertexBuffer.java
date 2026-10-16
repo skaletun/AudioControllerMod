@@ -83,7 +83,7 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
 
     @Override public void draw() {
         if (residency != null) NativeRegionEngine.draw(residency);
-        else super.draw();
+        else if (((VertexBufferStateAccessor)(Object)this).solarvant$getMode() != null) super.draw();
     }
 
     @Override public void close() {

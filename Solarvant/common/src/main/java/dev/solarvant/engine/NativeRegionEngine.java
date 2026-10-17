@@ -112,6 +112,10 @@ public final class NativeRegionEngine {
         if (stride != 2 && stride != 4) return null;
         if (stride == 2 && state.vertexCount() > 65535) return null;
         ByteBuffer indices = mesh.indexBuffer();
+        // Shared opaque index buffers are strictly canonical; an explicitly
+        // indexed opaque mesh may contain a different triangle order and must
+        // use the vanilla buffer path instead of being silently corrupted.
+        if (!IndexStoragePolicy.canUseNative(layer, indices != null)) return null;
         if (indices == null) indices = QUAD_INDICES.quadTriangles(state.vertexCount(), stride);
         if (indices.remaining() != state.indexCount() * stride) return null;
         initialize();

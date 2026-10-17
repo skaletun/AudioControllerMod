@@ -12,7 +12,7 @@ import java.util.Properties;
 public final class SolarvantConfig {
     public Preset preset = Preset.PERFORMANCE;
     public boolean hudVisible;
-    public boolean compactHud;
+    public boolean compactHud = true;
     public boolean engineEnabled = true;
     /** Opt-in until hardware screenshots and translucent sorting are validated. */
     public boolean nativeRendererEnabled = false;
@@ -38,7 +38,7 @@ public final class SolarvantConfig {
             try { preset = Preset.valueOf(p.getProperty("preset", preset.name())); }
             catch (IllegalArgumentException ignored) { preset = Preset.PERFORMANCE; }
             hudVisible = Boolean.parseBoolean(p.getProperty("hudVisible", "false"));
-            compactHud = Boolean.parseBoolean(p.getProperty("compactHud", "false"));
+            compactHud = Boolean.parseBoolean(p.getProperty("compactHud", "true"));
             engineEnabled = Boolean.parseBoolean(p.getProperty("engineEnabled", "true"));
             nativeRendererEnabled = Boolean.parseBoolean(p.getProperty("nativeRendererEnabled", "false"));
             fastOpaqueFaces = Boolean.parseBoolean(p.getProperty("fastOpaqueFaces", "true"));
@@ -64,7 +64,7 @@ public final class SolarvantConfig {
             Files.createDirectories(file.getParent());
             Path temp = file.resolveSibling(file.getFileName() + ".tmp");
             try (OutputStream out = Files.newOutputStream(temp)) {
-                p.store(out, "Solarvant 0.8: native video settings preserved");
+                p.store(out, "Solarvant: native video settings preserved");
             }
             try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
             catch (IOException ignored) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }

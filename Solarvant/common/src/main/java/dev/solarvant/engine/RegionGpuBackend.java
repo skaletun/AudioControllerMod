@@ -15,6 +15,7 @@ import org.lwjgl.opengl.GL43;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,8 +36,17 @@ import java.util.Set;
 public final class RegionGpuBackend implements AutoCloseable {
     private static final int COMMAND_STRIDE = 20;
     private final Map<PageId, GpuPage> pages = new HashMap<>();
+    /** EBO bindings belong to VAOs; avoid rebinding an unchanged shared EBO per draw. */
+    private final Set<PageId> sharedIndexBindings = new HashSet<>();
     private final int vertexPageBytes;
     private final int indexPageBytes;
+    // Vanilla opaque quad topology can share one EBO across every GPU region.
+    // Translucent meshes keep their independently sorted per-section indices.
+    private final QuadIndexCache sharedQuads = new QuadIndexCache();
+    private int sharedShortIndexBuffer;
+    private int sharedIntIndexBuffer;
+    private int sharedShortCount;
+    private int sharedIntCount;
     private ByteBuffer commands = ByteBuffer.allocateDirect(COMMAND_STRIDE * 128)
             .order(ByteOrder.nativeOrder());
 
@@ -66,20 +76,24 @@ public final class RegionGpuBackend implements AutoCloseable {
         }
         int vao = GL30.glGenVertexArrays();
         int vbo = GL15.glGenBuffers();
-        int ibo = GL15.glGenBuffers();
+        boolean privateIndices = !IndexStoragePolicy.shared(id.layer());
+        int ibo = privateIndices ? GL15.glGenBuffers() : 0;
         try {
             RenderSystem.glBindVertexArray(vao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, (long)vertexPageBytes, GL15.GL_DYNAMIC_DRAW);
-            GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ibo);
-            GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, (long)indexPageBytes, GL15.GL_DYNAMIC_DRAW);
+            if (privateIndices) {
+                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ibo);
+                GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, (long)indexPageBytes, GL15.GL_DYNAMIC_DRAW);
+            }
             format.setupBufferState();
-            GpuPage page = new GpuPage(vbo, ibo, vao, format, vertexPageBytes, indexPageBytes);
+            GpuPage page = new GpuPage(vbo, ibo, vao, format, vertexPageBytes,
+                    privateIndices ? indexPageBytes : 0);
             pages.put(id, page);
             return page;
         } catch (RuntimeException | Error ex) {
             GL15.glDeleteBuffers(vbo);
-            GL15.glDeleteBuffers(ibo);
+            if (ibo != 0) GL15.glDeleteBuffers(ibo);
             GL30.glDeleteVertexArrays(vao);
             throw ex;
         } finally {
@@ -97,14 +111,17 @@ public final class RegionGpuBackend implements AutoCloseable {
             throw new IllegalArgumentException("CPU mesh lengths/format mismatch");
         GpuPage p = ensure(mesh.page(), format);
         if ((long)mesh.vertices().offset()+vertices.remaining() > p.vertexCapacity()
-                || (long)mesh.indices().offset()+indices.remaining() > p.indexCapacity())
+                || (p.indexBuffer() != 0 &&
+                    (long)mesh.indices().offset()+indices.remaining() > p.indexCapacity()))
             throw new IllegalArgumentException("GPU mesh offset outside region page");
         try {
             RenderSystem.glBindVertexArray(p.vertexArray());
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, p.vertexBuffer());
             GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, mesh.vertices().offset(), vertices);
-            GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, p.indexBuffer());
-            GL15.glBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, mesh.indices().offset(), indices);
+            if (p.indexBuffer() != 0) {
+                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, p.indexBuffer());
+                GL15.glBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, mesh.indices().offset(), indices);
+            }
         } finally {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
             RenderSystem.glBindVertexArray(0);
@@ -119,11 +136,16 @@ public final class RegionGpuBackend implements AutoCloseable {
         RenderSystem.glBindVertexArray(p.vertexArray());
         try {
             int type = batch.page().indexStride()==2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT;
+            if (p.indexBuffer() == 0) {
+                int max = 0;
+                for (Draw draw : batch.draws()) max = Math.max(max, draw.count());
+                bindSharedQuadIndices(batch.page(), max, batch.page().indexStride());
+            }
             for (Draw d: batch.draws()) {
                 if (!d.page().equals(batch.page())) throw new IllegalArgumentException("Mixed region batch");
                 state.prepare(d);
                 GL32.glDrawElementsBaseVertex(GL15.GL_TRIANGLES, d.count(), type,
-                        (long)d.firstIndex()*batch.page().indexStride(), d.baseVertex());
+                        p.indexBuffer() == 0 ? 0L : (long)d.firstIndex()*batch.page().indexStride(), d.baseVertex());
             }
             return batch.draws().size();
         } finally {
@@ -159,13 +181,18 @@ public final class RegionGpuBackend implements AutoCloseable {
             if (!d.page().equals(batch.page())) throw new IllegalArgumentException("Mixed region batch");
             commands.putInt(d.count());
             commands.putInt(1);
-            commands.putInt(d.firstIndex());
+            commands.putInt(p.indexBuffer() == 0 ? 0 : d.firstIndex());
             commands.putInt(d.baseVertex());
             commands.putInt(idx);
         }
         commands.flip();
         RenderSystem.glBindVertexArray(p.vertexArray());
         try {
+            if (p.indexBuffer() == 0) {
+                int max = 0;
+                for (Draw draw : batch.draws()) max = Math.max(max, draw.count());
+                bindSharedQuadIndices(batch.page(), max, batch.page().indexStride());
+            }
             GL43.glMultiDrawElementsIndirect(GL15.GL_TRIANGLES,
                     batch.page().indexStride()==2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT,
                     commands, n, 0);
@@ -180,15 +207,17 @@ public final class RegionGpuBackend implements AutoCloseable {
         renderThread();
         GpuPage p = requirePage(page);
         RenderSystem.glBindVertexArray(p.vertexArray());
+        if (p.indexBuffer() == 0) bindSharedQuadIndices(page, indexCount, page.indexStride());
         GL32.glDrawElementsBaseVertex(GL15.GL_TRIANGLES, indexCount,
                 page.indexStride() == 2 ? GL15.GL_UNSIGNED_SHORT : GL15.GL_UNSIGNED_INT,
-                (long)firstIndex * page.indexStride(), baseVertex);
+                p.indexBuffer() == 0 ? 0L : (long)firstIndex * page.indexStride(), baseVertex);
     }
 
     /** Replace already resident transparent indices without reallocating vertex data. */
     public void updateIndices(PageId page, int offset, ByteBuffer indices) {
         renderThread();
         GpuPage p = requirePage(page);
+        if (p.indexBuffer() == 0) throw new IllegalArgumentException("Cannot sort shared canonical opaque indices");
         if (offset < 0 || (long)offset + indices.remaining() > p.indexCapacity())
             throw new IllegalArgumentException("Index upload outside page");
         RenderSystem.glBindVertexArray(p.vertexArray());
@@ -199,6 +228,37 @@ public final class RegionGpuBackend implements AutoCloseable {
     public void bind(PageId page) {
         renderThread();
         RenderSystem.glBindVertexArray(requirePage(page).vertexArray());
+    }
+
+    /**
+     * A reusable canonical index buffer removes one index upload per opaque
+     * section and physically stores the quad triangulation just once per type.
+     * Called with its target VAO already bound. Each growth only uploads the
+     * new complete contiguous topology; section vertices remain untouched.
+     */
+    private void bindSharedQuadIndices(PageId page, int count, int stride) {
+        if (count < 0 || count % 6 != 0 || (stride != 2 && stride != 4))
+            throw new IllegalArgumentException("Invalid shared triangle topology");
+        int handle = stride == 2 ? sharedShortIndexBuffer : sharedIntIndexBuffer;
+        if (handle == 0) {
+            handle = GL15.glGenBuffers();
+            if (stride == 2) sharedShortIndexBuffer = handle;
+            else sharedIntIndexBuffer = handle;
+        }
+        int capacity = stride == 2 ? sharedShortCount : sharedIntCount;
+        if (!sharedIndexBindings.contains(page) || count > capacity) {
+            GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, handle);
+            sharedIndexBindings.add(page);
+        }
+        if (count <= capacity) return;
+        int target = Math.max(6, capacity);
+        while (target < count) target = Math.multiplyExact(target, 2);
+        target = ((target + 5) / 6) * 6;
+        int vertices = Math.multiplyExact(target / 6, 4);
+        ByteBuffer data = sharedQuads.quadTriangles(vertices, stride);
+        GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, data, GL15.GL_STATIC_DRAW);
+        if (stride == 2) sharedShortCount = target;
+        else sharedIntCount = target;
     }
 
     private GpuPage requirePage(PageId id) {
@@ -212,6 +272,7 @@ public final class RegionGpuBackend implements AutoCloseable {
         renderThread();
         for (PageId id : retired) {
             GpuPage page = pages.remove(id);
+            sharedIndexBindings.remove(id);
             if (page != null) delete(page);
         }
     }
@@ -223,6 +284,7 @@ public final class RegionGpuBackend implements AutoCloseable {
             var entry = it.next();
             if (!activePages.contains(entry.getKey())) {
                 delete(entry.getValue());
+                sharedIndexBindings.remove(entry.getKey());
                 it.remove();
             }
         }
@@ -231,7 +293,7 @@ public final class RegionGpuBackend implements AutoCloseable {
     private static void delete(GpuPage page) {
         RenderSystem.glBindVertexArray(0); // Keep Minecraft's tracked binding coherent.
         GL15.glDeleteBuffers(page.vertexBuffer());
-        GL15.glDeleteBuffers(page.indexBuffer());
+        if (page.indexBuffer() != 0) GL15.glDeleteBuffers(page.indexBuffer());
         GL30.glDeleteVertexArrays(page.vertexArray());
     }
 
@@ -241,5 +303,12 @@ public final class RegionGpuBackend implements AutoCloseable {
         renderThread();
         for (GpuPage page:pages.values()) delete(page);
         pages.clear();
+        sharedIndexBindings.clear();
+        if (sharedShortIndexBuffer != 0) GL15.glDeleteBuffers(sharedShortIndexBuffer);
+        if (sharedIntIndexBuffer != 0) GL15.glDeleteBuffers(sharedIntIndexBuffer);
+        sharedShortIndexBuffer = 0;
+        sharedIntIndexBuffer = 0;
+        sharedShortCount = 0;
+        sharedIntCount = 0;
     }
 }

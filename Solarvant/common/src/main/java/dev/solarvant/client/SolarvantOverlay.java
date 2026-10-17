@@ -30,9 +30,9 @@ public final class SolarvantOverlay {
         int screenW = g.guiWidth();
         int screenH = g.guiHeight();
         boolean compact = screenW < 430 || screenH < 295 || SolarvantClient.settings().compactHud;
-        int w = Math.min(292, screenW - 16);
+        int w = Math.min(248, Math.min(screenW - 16, Math.max(180, screenW / 3)));
         if (w < 170 || screenH < 162) return;
-        int h = compact ? 147 : 309;
+        int h = compact ? 116 : 309;
         int x = screenW - w - 8;
         int y = 8;
         SolarvantClient.HudText data = SolarvantClient.hudText();
@@ -56,10 +56,7 @@ public final class SolarvantOverlay {
         line(g, bx, right, ty + 14, "SPIKES >50ms", data.spikesLabel(), WARNING);
         line(g, bx, right, ty + 28, "RAM HEAP", data.heapLabel(), TEXT);
         line(g, bx, right, ty + 42, "CPU PROCESS", SolarvantClient.cpuSummary(), TEXT);
-        if (compact) {
-            g.drawString(mc.font, "ESC: Settings  |  " + SolarvantClient.rendererName(), bx, y + 128, MUTED, false);
-            return;
-        }
+        if (compact) return;
         line(g, bx, right, ty + 56, "GC / 1min", SolarvantClient.gcSummary(), TEXT);
         line(g, bx, right, ty + 70, "CHUNKS", SolarvantClient.chunkSummary(), TEXT);
         line(g, bx, right, ty + 84, "ENGINE", SolarvantClient.engineState(), ACCENT);

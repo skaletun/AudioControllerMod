@@ -53,7 +53,7 @@ jobs:
           fastOpaqueFaces=true
           cacheSectionTints=true
           hudVisible=true
-          compactHud=false
+          compactHud=true
           EOF
           printf 'onboardAccessibility:false\nrenderDistance:%s\nsimulationDistance:12\n' "$CHUNKS" > "$WORK_DIR/options.txt"
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >xvfb.log 2>&1 &

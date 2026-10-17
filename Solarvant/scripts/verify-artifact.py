@@ -17,6 +17,7 @@ def verify(path: Path, loader: str) -> None:
             'dev/solarvant/engine/RegionMeshPipeline.class',
             'dev/solarvant/engine/RegionGpuBackend.class',
             'dev/solarvant/engine/QuadIndexCache.class',
+            'dev/solarvant/engine/IndexStoragePolicy.class',
             'dev/solarvant/engine/NativeRegionEngine.class',
             'dev/solarvant/engine/SolarvantVertexBuffer.class',
             'dev/solarvant/mixin/VertexBufferStateAccessor.class',
@@ -55,9 +56,9 @@ def verify(path: Path, loader: str) -> None:
             manifest = json.loads(z.read(metadata))
             assert manifest['icon'] == 'assets/solarvant/icon.png'
             assert manifest['id'] == 'solarvant'
-            assert manifest['version'] == '0.9.0-dev.5', manifest['version']
+            assert manifest['version'] == '0.9.0-dev.6', manifest['version']
         if loader != 'fabric':
-            assert '0.9.0-dev.5' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
+            assert '0.9.0-dev.6' in z.read(metadata).decode('utf-8'), f'{loader}: stale mod metadata version'
             assert 'logoFile = "assets/solarvant/icon.png"' in z.read(metadata).decode('utf-8')
         print(f'PASS {loader}: {path.name}, {len(names)} zip entries')
 

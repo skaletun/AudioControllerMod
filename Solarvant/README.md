@@ -1,4 +1,4 @@
-# Solarvant 0.9.0-dev.4 — GPU residency integration fixes
+# Solarvant 0.9.0-dev.6 — GPU residency and shared quad indices
 
 Minecraft Java 1.21.1 · Java 21 · Fabric, NeoForge, Forge.
 
@@ -40,3 +40,11 @@ Use JDK 21 / Gradle 8.14.3. Run `bash scripts/test-core.sh` and
 **The native renderer is disabled by default until it passes real-world
 visual equivalence and GPU performance tests.** Do not treat a green Gradle
 build or virtual-display client startup as a render-world benchmark.
+
+## GPU render work in dev.5 / dev.6
+
+- dev.5: Native VBOs are installed when render sections are constructed, before builder threads can reference the map. Recycled sections release stale GPU residency on `setOrigin`. Empty native VBOs are never drawn using a stale vanilla mode.
+- dev.6: Opaque quads share one canonical GL element array per index type instead of uploading/copying quad indices into every GPU region. Transparent mesh indices remain independent and sortable; explicitly indexed opaque geometry falls back to vanilla.
+- A compact top-right HUD is the default for new installations, with the full diagnostic view still available in the Solarvant settings.
+
+OpenGL compilation, world screenshots and real hardware comparative benchmarks remain mandatory. This is still an **experimental prerelease**; no speedup versus Sodium is claimed without measured evidence.

@@ -21,6 +21,9 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
     private NativeRegionEngine.Residency residency;
     /** Only a completed fallback upload can be drawn through super.draw(). */
     private boolean vanillaResident;
+    // One-time per-section fail-safe for missing compiled geometry.
+    private boolean recoveryMode;
+    private boolean recoveryIssued;
 
     public SolarvantVertexBuffer(Section section, Layer layer) {
         super(Usage.STATIC);
@@ -33,6 +36,8 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
             if (residency != null) NativeRegionEngine.release(residency);
             residency = null;
             vanillaResident = false;
+            recoveryMode = false;
+            recoveryIssued = false;
             section = next;
         }
     }
@@ -46,11 +51,21 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
         if (residency != null) NativeRegionEngine.release(residency);
         residency = null;
         vanillaResident = false;
+        recoveryMode = false;
+        recoveryIssued = false;
+    }
+
+    /** Request a single vanilla rebuild when a completed layer has no drawable buffer. */
+    public boolean recoverIfMissing() {
+        if (residency != null || vanillaResident || recoveryIssued) return false;
+        recoveryIssued = true;
+        recoveryMode = true;
+        return true;
     }
 
     @Override public void upload(MeshData mesh) {
         // This method owns MeshData exactly as its vanilla counterpart does.
-        if (!SolarvantClient.isNativeRendererEnabled()) {
+        if (recoveryMode || !SolarvantClient.isNativeRendererEnabled()) {
             fallbackUpload(mesh);
             return;
         }

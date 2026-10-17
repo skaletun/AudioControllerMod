@@ -14,6 +14,15 @@ public final class SharedIndexPolicyTests {
             check(IndexStoragePolicy.drawFirstIndex(layer, 123) == (transparent ? 123 : 0),
                     "shared element offsets must be zero");
         }
+        check(IndexStoragePolicy.growCanonicalIndexCount(0, 6, 2) == 6, "short initial capacity");
+        check(IndexStoragePolicy.growCanonicalIndexCount(49152, 98298, 2) == 98298,
+                "short index capacity must cap before 65536 vertices");
+        check(IndexStoragePolicy.growCanonicalIndexCount(49152, 98298, 4) == 98304,
+                "integer index capacity can still double");
+        try {
+            IndexStoragePolicy.growCanonicalIndexCount(0, 98304, 2);
+            throw new AssertionError("invalid 16-bit capacity accepted");
+        } catch (IllegalArgumentException expected) { }
         try {
             IndexStoragePolicy.drawFirstIndex(Layer.SOLID, -1);
             throw new AssertionError("negative index offset accepted");

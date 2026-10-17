@@ -251,9 +251,7 @@ public final class RegionGpuBackend implements AutoCloseable {
             sharedIndexBindings.add(page);
         }
         if (count <= capacity) return;
-        int target = Math.max(6, capacity);
-        while (target < count) target = Math.multiplyExact(target, 2);
-        target = ((target + 5) / 6) * 6;
+        int target = IndexStoragePolicy.growCanonicalIndexCount(capacity, count, stride);
         int vertices = Math.multiplyExact(target / 6, 4);
         ByteBuffer data = sharedQuads.quadTriangles(vertices, stride);
         GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, data, GL15.GL_STATIC_DRAW);

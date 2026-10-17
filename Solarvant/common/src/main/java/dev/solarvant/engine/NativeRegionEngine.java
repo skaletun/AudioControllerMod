@@ -29,8 +29,9 @@ import java.nio.ByteBuffer;
 public final class NativeRegionEngine {
     private static final int VERTEX_PAGE = 8 * 1024 * 1024;
     private static final int INDEX_PAGE = 2 * 1024 * 1024;
-    // Maximum reserved VRAM (rather than used byte count) before safe vanilla fallback.
-    private static final int MAX_PAGES = 96;
+    // A separate byte budget in RegionGpuBackend limits physically allocated VRAM.
+    // Virtual pages are cheap and should not force fallback at 32 chunks.
+    private static final int MAX_PAGES = 512;
     private static RegionMeshPipeline pipeline;
     private static RegionGpuBackend gpu;
     private static ClientLevel level;
@@ -120,14 +121,9 @@ public final class NativeRegionEngine {
         if (indices.remaining() != state.indexCount() * stride) return null;
         initialize();
         if (pipeline == null || gpu == null) return null;
-        // Fail over without compromising other resident sections when VRAM is constrained.
+        // GPU byte pressure is managed by the backend; virtual page limits
+        // are checked after a reservation so free space remains reusable.
         MeshKey key = new MeshKey(section, layer);
-        if (pipeline.stats().pages() >= MAX_PAGES && pipeline.get(key) == null) {
-            fallbackMeshes++;
-            pipeline.removeKey(key);
-            gpu.releasePages(pipeline.drainReclaimedPages());
-            return null;
-        }
         Ticket ticket = pipeline.begin(key);
         Geometry geometry = new Geometry(state.vertexCount(), state.indexCount(),
                 state.format().getVertexSize(), stride, vertices.remaining(), indices.remaining());
@@ -136,6 +132,13 @@ public final class NativeRegionEngine {
             fallbackMeshes++;
             pipeline.removeKey(key);
             gpu.releasePages(pipeline.drainReclaimedPages());
+            return null;
+        }
+        if (pipeline.stats().pages() > MAX_PAGES) {
+            pipeline.abort(prepared);
+            pipeline.removeKey(key);
+            gpu.releasePages(pipeline.drainReclaimedPages());
+            fallbackMeshes++;
             return null;
         }
         try {
@@ -155,6 +158,17 @@ public final class NativeRegionEngine {
                     prepared.indices().offset() / stride,
                     prepared.vertices().offset() / geometry.vertexStride(),
                     geometry.indexBytes(), state.mode());
+        } catch (RegionGpuBackend.GpuBudgetExceeded budget) {
+            // Budget exhaustion is an expected fallback condition, not a crash.
+            // The old mesh is replaced through the vanilla VertexBuffer path.
+            pipeline.abort(prepared);
+            pipeline.removeKey(key);
+            gpu.releasePages(pipeline.drainReclaimedPages());
+            fallbackMeshes++;
+            if (fallbackMeshes == 1 || fallbackMeshes % 2048 == 0)
+                LOGGER.warn("Native GPU budget reached; using vanilla terrain upload (fallbacks: {})",
+                        fallbackMeshes);
+            return null;
         } catch (RuntimeException | Error failure) {
             // Preserve world correctness: let caller report the GL failure rather
             // than attempt to draw a partially initialized VAO.
@@ -206,7 +220,9 @@ public final class NativeRegionEngine {
         if (pipeline == null) return "Native GPU: waiting";
         RegionMeshPipeline.Stats s = pipeline.stats();
         return "Native GPU: " + s.activeMeshes() + " meshes / " + s.pages() + " pages / "
-                + (s.residentBytes() / 1048576) + " MiB / " + nativeUploads + " uploads"
+                + (s.residentBytes() / 1048576) + " MiB mesh / "
+                + (gpu == null ? 0 : gpu.allocatedGpuBytes() / 1048576) + " MiB GPU / "
+                + nativeUploads + " uploads"
                 + " / " + adoptedSectionBuffers + " section VBOs active"
                 + (fallbackMeshes > 0 ? " / " + fallbackMeshes + " fallback" : "");
     }

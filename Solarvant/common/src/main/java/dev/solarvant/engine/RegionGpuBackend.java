@@ -9,6 +9,7 @@ import dev.solarvant.engine.RegionMeshPipeline.Prepared;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL32;
 import org.lwjgl.opengl.GL43;
 
@@ -35,6 +36,14 @@ import java.util.Set;
  */
 public final class RegionGpuBackend implements AutoCloseable {
     private static final int COMMAND_STRIDE = 20;
+    // Actual GPU storage is committed on demand, not on virtual page creation.
+    private static final long MAX_ALLOCATED_GPU_BYTES = 512L * 1024 * 1024;
+    private static final int MIN_GPU_ALLOCATION = 64 * 1024;
+    private long allocatedGpuBytes;
+
+    public static final class GpuBudgetExceeded extends RuntimeException {
+        public GpuBudgetExceeded(String message) { super(message); }
+    }
     private final Map<PageId, GpuPage> pages = new HashMap<>();
     /** EBO bindings belong to VAOs; avoid rebinding an unchanged shared EBO per draw. */
     private final Set<PageId> sharedIndexBindings = new HashSet<>();
@@ -55,8 +64,26 @@ public final class RegionGpuBackend implements AutoCloseable {
         void prepare(Draw draw);
     }
 
-    private record GpuPage(int vertexBuffer, int indexBuffer, int vertexArray,
-                           VertexFormat format, int vertexCapacity, int indexCapacity) { }
+    private static final class GpuPage {
+        private int vertexBuffer;
+        private int indexBuffer;
+        private final int vertexArray;
+        private final VertexFormat format;
+        private int vertexCapacity;
+        private int indexCapacity;
+        GpuPage(int vertexBuffer, int indexBuffer, int vertexArray, VertexFormat format) {
+            this.vertexBuffer = vertexBuffer;
+            this.indexBuffer = indexBuffer;
+            this.vertexArray = vertexArray;
+            this.format = format;
+        }
+        int vertexBuffer() { return vertexBuffer; }
+        int indexBuffer() { return indexBuffer; }
+        int vertexArray() { return vertexArray; }
+        VertexFormat format() { return format; }
+        int vertexCapacity() { return vertexCapacity; }
+        int indexCapacity() { return indexCapacity; }
+    }
 
     public RegionGpuBackend(int vertexPageBytes, int indexPageBytes) {
         if (vertexPageBytes < 4096 || indexPageBytes < 4096)
@@ -81,14 +108,10 @@ public final class RegionGpuBackend implements AutoCloseable {
         try {
             RenderSystem.glBindVertexArray(vao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
-            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, (long)vertexPageBytes, GL15.GL_DYNAMIC_DRAW);
-            if (privateIndices) {
-                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ibo);
-                GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, (long)indexPageBytes, GL15.GL_DYNAMIC_DRAW);
-            }
+            if (privateIndices) GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ibo);
+            // Vertex attributes may be installed before buffer storage exists.
             format.setupBufferState();
-            GpuPage page = new GpuPage(vbo, ibo, vao, format, vertexPageBytes,
-                    privateIndices ? indexPageBytes : 0);
+            GpuPage page = new GpuPage(vbo, ibo, vao, format);
             pages.put(id, page);
             return page;
         } catch (RuntimeException | Error ex) {
@@ -110,12 +133,13 @@ public final class RegionGpuBackend implements AutoCloseable {
                 || format.getVertexSize() != mesh.geometry().vertexStride())
             throw new IllegalArgumentException("CPU mesh lengths/format mismatch");
         GpuPage p = ensure(mesh.page(), format);
-        if ((long)mesh.vertices().offset()+vertices.remaining() > p.vertexCapacity()
-                || (p.indexBuffer() != 0 &&
-                    (long)mesh.indices().offset()+indices.remaining() > p.indexCapacity()))
-            throw new IllegalArgumentException("GPU mesh offset outside region page");
+        int vertexEnd = Math.addExact(mesh.vertices().offset(), vertices.remaining());
+        int indexEnd = Math.addExact(mesh.indices().offset(), indices.remaining());
+        if (vertexEnd > vertexPageBytes || (p.indexBuffer() != 0 && indexEnd > indexPageBytes))
+            throw new IllegalArgumentException("GPU mesh offset outside virtual region page");
         try {
             RenderSystem.glBindVertexArray(p.vertexArray());
+            ensureStorage(p, vertexEnd, p.indexBuffer() == 0 ? 0 : indexEnd);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, p.vertexBuffer());
             GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, mesh.vertices().offset(), vertices);
             if (p.indexBuffer() != 0) {
@@ -127,6 +151,69 @@ public final class RegionGpuBackend implements AutoCloseable {
             RenderSystem.glBindVertexArray(0);
         }
     }
+
+    /**
+     * Grow buffers without discarding the geometry uploaded for other sections.
+     * A glBufferData call on an existing VBO would silently erase that terrain.
+     */
+    private void ensureStorage(GpuPage p, int verticesRequired, int indicesRequired) {
+        if (verticesRequired > p.vertexCapacity()) {
+            int next = grow(p.vertexCapacity(), verticesRequired, vertexPageBytes);
+            p.vertexBuffer = expand(p, p.vertexBuffer(), p.vertexCapacity(), next, false);
+            allocatedGpuBytes += (long)next - p.vertexCapacity();
+            p.vertexCapacity = next;
+        }
+        if (p.indexBuffer() != 0 && indicesRequired > p.indexCapacity()) {
+            int next = grow(p.indexCapacity(), indicesRequired, indexPageBytes);
+            p.indexBuffer = expand(p, p.indexBuffer(), p.indexCapacity(), next, true);
+            allocatedGpuBytes += (long)next - p.indexCapacity();
+            p.indexCapacity = next;
+        }
+    }
+
+    private static int grow(int oldCapacity, int required, int limit) {
+        if (required < 0 || required > limit)
+            throw new IllegalArgumentException("Invalid GPU growth");
+        int target = Math.min(limit, Math.max(MIN_GPU_ALLOCATION, oldCapacity));
+        while (target < required) target = (int)Math.min((long)limit, (long)target * 2);
+        return target;
+    }
+
+    private int expand(GpuPage p, int oldBuffer, int oldCapacity, int target, boolean index) {
+        // Growth temporarily holds both allocations: enforce the peak, not just delta.
+        if (allocatedGpuBytes + target > MAX_ALLOCATED_GPU_BYTES)
+            throw new GpuBudgetExceeded("Native GPU residency budget exhausted");
+        int binding = index ? GL15.GL_ELEMENT_ARRAY_BUFFER : GL15.GL_ARRAY_BUFFER;
+        if (oldCapacity == 0) {
+            GL15.glBindBuffer(binding, oldBuffer);
+            GL15.glBufferData(binding, (long)target, GL15.GL_DYNAMIC_DRAW);
+            return oldBuffer;
+        }
+        int replacement = GL15.glGenBuffers();
+        boolean installed = false;
+        try {
+            GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, oldBuffer);
+            GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, replacement);
+            GL15.glBufferData(GL31.GL_COPY_WRITE_BUFFER, (long)target, GL15.GL_DYNAMIC_DRAW);
+            GL31.glCopyBufferSubData(GL31.GL_COPY_READ_BUFFER, GL31.GL_COPY_WRITE_BUFFER,
+                    0L, 0L, (long)oldCapacity);
+            if (index) {
+                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, replacement);
+            } else {
+                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, replacement);
+                p.format().setupBufferState();
+            }
+            installed = true;
+            GL15.glDeleteBuffers(oldBuffer);
+            return replacement;
+        } finally {
+            GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, 0);
+            GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, 0);
+            if (!installed) GL15.glDeleteBuffers(replacement);
+        }
+    }
+
+    public long allocatedGpuBytes() { return allocatedGpuBytes; }
 
     /** Safe GL3.3 path: caller updates Minecraft-compatible shader uniforms per section. */
     public int drawOneByOne(Batch batch, DrawState state) {
@@ -271,7 +358,10 @@ public final class RegionGpuBackend implements AutoCloseable {
         for (PageId id : retired) {
             GpuPage page = pages.remove(id);
             sharedIndexBindings.remove(id);
-            if (page != null) delete(page);
+            if (page != null) {
+                allocatedGpuBytes -= (long)page.vertexCapacity() + page.indexCapacity();
+                delete(page);
+            }
         }
     }
 
@@ -281,7 +371,9 @@ public final class RegionGpuBackend implements AutoCloseable {
         for (var it = pages.entrySet().iterator();it.hasNext();) {
             var entry = it.next();
             if (!activePages.contains(entry.getKey())) {
-                delete(entry.getValue());
+                GpuPage stale = entry.getValue();
+                allocatedGpuBytes -= (long)stale.vertexCapacity() + stale.indexCapacity();
+                delete(stale);
                 sharedIndexBindings.remove(entry.getKey());
                 it.remove();
             }
@@ -301,6 +393,7 @@ public final class RegionGpuBackend implements AutoCloseable {
         renderThread();
         for (GpuPage page:pages.values()) delete(page);
         pages.clear();
+        allocatedGpuBytes = 0;
         sharedIndexBindings.clear();
         if (sharedShortIndexBuffer != 0) GL15.glDeleteBuffers(sharedShortIndexBuffer);
         if (sharedIntIndexBuffer != 0) GL15.glDeleteBuffers(sharedIntIndexBuffer);

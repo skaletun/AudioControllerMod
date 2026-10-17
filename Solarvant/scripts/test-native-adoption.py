@@ -8,3 +8,4 @@ assert 'SolarvantVertexBuffer(section, layer)' in source, 'No native VBO adoptio
 assert 'RenderSystem.isOnRenderThread()' in source, 'GL access must be render-thread guarded'
 assert '@Inject(method = "getBuffer"' not in source, 'Late getBuffer replacement reintroduces missing terrain'
 print('PASS: section buffer adoption precedes asynchronous meshing')
+assert '@Inject(method = "setOrigin"' in source, 'Recycled sections must invalidate their prior native residency'

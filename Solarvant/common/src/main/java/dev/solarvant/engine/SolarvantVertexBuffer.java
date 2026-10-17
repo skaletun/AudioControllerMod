@@ -19,6 +19,8 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
     private Section section;
     private final Layer layer;
     private NativeRegionEngine.Residency residency;
+    /** Only a completed fallback upload can be drawn through super.draw(). */
+    private boolean vanillaResident;
 
     public SolarvantVertexBuffer(Section section, Layer layer) {
         super(Usage.STATIC);
@@ -30,6 +32,7 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
         if (!next.equals(section)) {
             if (residency != null) NativeRegionEngine.release(residency);
             residency = null;
+            vanillaResident = false;
             section = next;
         }
     }
@@ -47,6 +50,7 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
         }
         if (residency != null) NativeRegionEngine.release(residency);
         residency = replacement;
+        vanillaResident = false;
         ((VertexBufferStateAccessor)(Object)this).solarvant$setMode(replacement.mode());
         ((VertexBufferStateAccessor)(Object)this).solarvant$setFormat(mesh.drawState().format());
         ((VertexBufferStateAccessor)(Object)this).solarvant$setIndexCount(replacement.count());
@@ -62,11 +66,13 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
         }
         super.bind(); // Ensure super.upload cannot overwrite shared GPU pages.
         super.upload(mesh);
+        vanillaResident = true;
     }
 
     @Override public void uploadIndexBuffer(ByteBufferBuilder.Result result) {
         if (residency == null) {
-            super.uploadIndexBuffer(result);
+            if (vanillaResident) super.uploadIndexBuffer(result);
+            else result.close();
             return;
         }
         try {
@@ -83,12 +89,13 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
 
     @Override public void draw() {
         if (residency != null) NativeRegionEngine.draw(residency);
-        else if (((VertexBufferStateAccessor)(Object)this).solarvant$getMode() != null) super.draw();
+        else if (vanillaResident) super.draw();
     }
 
     @Override public void close() {
         if (residency != null) NativeRegionEngine.release(residency);
         residency = null;
+        vanillaResident = false;
         super.close();
     }
 }

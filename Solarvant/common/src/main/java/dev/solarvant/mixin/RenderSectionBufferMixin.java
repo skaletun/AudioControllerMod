@@ -51,4 +51,18 @@ public abstract class RenderSectionBufferMixin {
             NativeRegionEngine.markSectionBufferAdopted();
         }
     }
+
+    /**
+     * ViewArea recycles RenderSection instances as the camera moves. Keep the
+     * immutable VBO identity, but invalidate old GPU residency before any
+     * rebuild writes geometry at the new section position.
+     */
+    @Inject(method = "setOrigin", at = @At("TAIL"))
+    private void solarvant$recycleWithoutSwapping(int x, int y, int z, CallbackInfo ci) {
+        if (!RenderSystem.isOnRenderThread() || buffers == null) return;
+        Section next = new Section(Math.floorDiv(x, 16), Math.floorDiv(y, 16), Math.floorDiv(z, 16));
+        for (VertexBuffer vbo : buffers.values()) {
+            if (vbo instanceof SolarvantVertexBuffer nativeBuffer) nativeBuffer.updateSection(next);
+        }
+    }
 }

@@ -8,6 +8,7 @@ import dev.solarvant.engine.RegionMeshPipeline.PageId;
 import dev.solarvant.engine.RegionMeshPipeline.Prepared;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL32;
@@ -187,6 +188,7 @@ public final class RegionGpuBackend implements AutoCloseable {
         if (oldCapacity == 0) {
             GL15.glBindBuffer(binding, oldBuffer);
             GL15.glBufferData(binding, (long)target, GL15.GL_DYNAMIC_DRAW);
+            checkStorageError();
             return oldBuffer;
         }
         int replacement = GL15.glGenBuffers();
@@ -195,8 +197,10 @@ public final class RegionGpuBackend implements AutoCloseable {
             GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, oldBuffer);
             GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, replacement);
             GL15.glBufferData(GL31.GL_COPY_WRITE_BUFFER, (long)target, GL15.GL_DYNAMIC_DRAW);
+            checkStorageError();
             GL31.glCopyBufferSubData(GL31.GL_COPY_READ_BUFFER, GL31.GL_COPY_WRITE_BUFFER,
                     0L, 0L, (long)oldCapacity);
+            checkStorageError();
             if (index) {
                 GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, replacement);
             } else {
@@ -211,6 +215,16 @@ public final class RegionGpuBackend implements AutoCloseable {
             GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, 0);
             if (!installed) GL15.glDeleteBuffers(replacement);
         }
+    }
+
+    // Only checked on GPU memory allocation/copy, never on the hot draw path.
+    private static void checkStorageError() {
+        int error = GL11.glGetError();
+        if (error == GL11.GL_OUT_OF_MEMORY)
+            throw new GpuBudgetExceeded("OpenGL driver refused terrain buffer allocation");
+        if (error != GL11.GL_NO_ERROR)
+            throw new IllegalStateException("OpenGL terrain buffer error: 0x"
+                    + Integer.toHexString(error));
     }
 
     public long allocatedGpuBytes() { return allocatedGpuBytes; }

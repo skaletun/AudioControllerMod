@@ -118,6 +118,11 @@ jobs:
             echo "Native backend was not exercised; reject false-positive smoke"
             exit 1
           fi
+          if grep -q 'Compiled section had no GPU geometry' client.log; then
+            echo "Native GPU renderer produced missing geometry during the world test"
+            grep 'Compiled section had no GPU geometry' client.log | tail -20 || true
+            exit 1
+          fi
           # A completely blank framebuffer does not constitute visual evidence.
           MEAN=$(identify -format '%[fx:mean]' screenshots/world-render.png)
           python3 - "$MEAN" <<'PYTEST'

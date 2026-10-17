@@ -25,5 +25,6 @@ java -cp .tmp-solarvant-tests dev.solarvant.tests.RegionMeshPipelineTests
 java -cp .tmp-solarvant-tests dev.solarvant.tests.QuadIndexCacheTests
 
 python3 scripts/test-native-adoption.py
+python3 scripts/test-native-memory.py
 
 java -cp .tmp-solarvant-tests dev.solarvant.tests.SharedIndexPolicyTests

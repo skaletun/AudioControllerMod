@@ -37,6 +37,17 @@ public final class SolarvantVertexBuffer extends VertexBuffer {
         }
     }
 
+    /**
+     * A newly compiled section may have no geometry for a formerly occupied
+     * layer. Vanilla never calls upload() in that case: retire the old native
+     * allocation when CompiledSection switches to the empty layer.
+     */
+    public void clearEmptyLayer() {
+        if (residency != null) NativeRegionEngine.release(residency);
+        residency = null;
+        vanillaResident = false;
+    }
+
     @Override public void upload(MeshData mesh) {
         // This method owns MeshData exactly as its vanilla counterpart does.
         if (!SolarvantClient.isNativeRendererEnabled()) {

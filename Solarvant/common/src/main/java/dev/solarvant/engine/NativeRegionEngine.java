@@ -38,6 +38,7 @@ public final class NativeRegionEngine {
     private static long generation;
     private static long fallbackMeshes;
     private static long nativeUploads;
+    private static long missingLayerRecoveries;
     private static long adoptedSectionBuffers;
     private static final QuadIndexCache QUAD_INDICES = new QuadIndexCache();
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("Solarvant/Renderer");
@@ -49,6 +50,14 @@ public final class NativeRegionEngine {
     private NativeRegionEngine() { }
 
     /** Called only when a vanilla terrain VBO is actually replaced. */
+    public static void reportMissingCompiledLayer() {
+        assertRenderThread();
+        missingLayerRecoveries++;
+        if (missingLayerRecoveries == 1 || missingLayerRecoveries % 128 == 0)
+            LOGGER.warn("Compiled section had no GPU geometry; scheduled vanilla recovery: {}",
+                    missingLayerRecoveries);
+    }
+
     public static void markSectionBufferAdopted() {
         assertRenderThread();
         adoptedSectionBuffers++;
@@ -224,6 +233,7 @@ public final class NativeRegionEngine {
                 + (gpu == null ? 0 : gpu.allocatedGpuBytes() / 1048576) + " MiB GPU / "
                 + nativeUploads + " uploads"
                 + " / " + adoptedSectionBuffers + " section VBOs active"
+                + (missingLayerRecoveries > 0 ? " / " + missingLayerRecoveries + " recoveries" : "")
                 + (fallbackMeshes > 0 ? " / " + fallbackMeshes + " fallback" : "");
     }
 }

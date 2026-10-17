@@ -83,6 +83,20 @@ jobs:
           xdotool mousemove 400 670 click 1
           sleep 140
           import -window root screenshots/world-render.png
+          # Keep actively streaming sections after spawn. A static first-frame
+          # screenshot cannot detect leaks or invalidations after view recycling.
+          if [ "$CHUNKS" -eq 32 ]; then
+            xdotool keydown w
+            sleep 90
+            xdotool keyup w
+            sleep 15
+            import -window root screenshots/world-after-travel.png
+          fi
+          if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+            echo "Minecraft terminated before the extended 32-chunk soak completed"
+            tail -100 client.log || true
+            exit 1
+          fi
           echo "World files:"
           find "$WORK_DIR/saves" -maxdepth 2 -name level.dat -print || true
           grep -E 'Preparing spawn|Loaded [0-9]+ advancements|Native resident terrain mesh uploaded' client.log | tail -20 || true
@@ -90,7 +104,7 @@ jobs:
             echo "World creation failed"
             exit 1
           fi
-          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError|Reported exception|Rendering screen|Rendering level|Cannot read field|java.lang.NullPointerException|Crash report saved|Stopping singleplayer server' client.log; then
+          if grep -Eqi 'MixinApplyError|MixinTransformerError|InvalidMixinException|InjectionError|Failed to load mod|Exception in thread|NoSuchMethodError|Reported exception|Rendering screen|Rendering level|Cannot read field|java.lang.NullPointerException|Crash report saved|Stopping singleplayer server|java.lang.OutOfMemoryError|OpenGL terrain buffer error' client.log; then
             echo "Detected client render error or unplanned shutdown"
             grep -Ei 'Exception|Crash|Stopping singleplayer|MixinApplyError' client.log | tail -50 || true
             exit 1

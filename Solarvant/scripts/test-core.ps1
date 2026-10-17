@@ -14,4 +14,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Core Java compilation failed' }
     & java -cp '.tmp-solarvant-tests' dev.solarvant.tests.CoreTests
     if ($LASTEXITCODE -ne 0) { throw 'Core tests failed' }
+    & python scripts/test-native-adoption.py
+    if ($LASTEXITCODE -ne 0) { throw 'Native buffer adoption tests failed' }
+    & python scripts/test-native-memory.py
+    if ($LASTEXITCODE -ne 0) { throw 'Native GPU memory guards failed' }
 } finally { Remove-Item '.tmp-solarvant-tests' -Force -Recurse -ErrorAction SilentlyContinue }

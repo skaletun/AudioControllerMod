@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# Only the most recent renderer revision needs a complete CI matrix.
+concurrency:
+  group: solarvant-native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   core:
     runs-on: ubuntu-latest

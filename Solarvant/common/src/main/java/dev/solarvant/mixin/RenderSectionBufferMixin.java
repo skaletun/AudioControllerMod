@@ -31,6 +31,7 @@ import java.util.Map;
 public abstract class RenderSectionBufferMixin {
     @Shadow @Final private Map<RenderType, VertexBuffer> buffers;
     @Shadow public abstract BlockPos getOrigin();
+    @Shadow public abstract void setDirty(boolean playerChanged);
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void solarvant$installBeforeMeshing(CallbackInfo ci) {
@@ -61,11 +62,19 @@ public abstract class RenderSectionBufferMixin {
             SectionRenderDispatcher.CompiledSection compiled, CallbackInfo ci) {
         if (!RenderSystem.isOnRenderThread()
                 || compiled == SectionRenderDispatcher.CompiledSection.UNCOMPILED) return;
+        boolean missing = false;
         for (RenderType type : RenderType.chunkBufferLayers()) {
-            if (!compiled.isEmpty(type)) continue;
             VertexBuffer vbo = buffers.get(type);
-            if (vbo instanceof SolarvantVertexBuffer nativeBuffer)
-                nativeBuffer.clearEmptyLayer();
+            if (!(vbo instanceof SolarvantVertexBuffer nativeBuffer)) continue;
+            if (compiled.isEmpty(type)) nativeBuffer.clearEmptyLayer();
+            else if (nativeBuffer.recoverIfMissing()) missing = true;
+        }
+        if (missing) {
+            // Schedule exactly one corrective rebuild per section position.
+            // The affected VBOs use vanilla uploads to avoid retrying a broken
+            // native buffer and leaving the section invisible indefinitely.
+            NativeRegionEngine.reportMissingCompiledLayer();
+            this.setDirty(true);
         }
     }
 

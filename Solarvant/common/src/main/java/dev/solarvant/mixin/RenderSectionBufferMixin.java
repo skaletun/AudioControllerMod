@@ -53,6 +53,23 @@ public abstract class RenderSectionBufferMixin {
     }
 
     /**
+     * Empty layers do not receive a MeshData upload during a rebuild. Without
+     * explicit retirement their old native pages stay resident forever.
+     */
+    @Inject(method = "setCompiled", at = @At("TAIL"))
+    private void solarvant$retireEmptyLayers(
+            SectionRenderDispatcher.CompiledSection compiled, CallbackInfo ci) {
+        if (!RenderSystem.isOnRenderThread()
+                || compiled == SectionRenderDispatcher.CompiledSection.UNCOMPILED) return;
+        for (RenderType type : RenderType.chunkBufferLayers()) {
+            if (!compiled.isEmpty(type)) continue;
+            VertexBuffer vbo = buffers.get(type);
+            if (vbo instanceof SolarvantVertexBuffer nativeBuffer)
+                nativeBuffer.clearEmptyLayer();
+        }
+    }
+
+    /**
      * ViewArea recycles RenderSection instances as the camera moves. Keep the
      * immutable VBO identity, but invalidate old GPU residency before any
      * rebuild writes geometry at the new section position.

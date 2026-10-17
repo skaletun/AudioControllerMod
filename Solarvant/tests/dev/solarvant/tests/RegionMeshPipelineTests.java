@@ -47,6 +47,22 @@ public final class RegionMeshPipelineTests {
         yes(p.publishEmpty(p.begin(origin)), "Empty layer removes old mesh");
         yes(p.stats().activeMeshes()==0, "No empty layer draw");
         yes(p.stats().pages()==0 && p.stats().residentBytes()==0, "Empty region freed");
+        // Opaque sections use a single shared canonical EBO. Large implicit
+        // index data should never fill the page's PRIVATE index arena.
+        RegionMeshPipeline opaqueCompact = new RegionMeshPipeline(1 << 20, 4096);
+        for (int sectionX = 0; sectionX < 6; sectionX++) {
+            put(opaqueCompact, new MeshKey(new Section(sectionX, 0, 0), Layer.SOLID),
+                    1024, 28);
+        }
+        yes(opaqueCompact.stats().pages() == 1,
+                "Six opaque meshes share one vertex page without private EBO fragmentation");
+        opaqueCompact.verify();
+        Ticket transparentLarge = opaqueCompact.begin(
+                new MeshKey(new Section(0, 0, 0), Layer.TRANSLUCENT));
+        yes(opaqueCompact.prepare(transparentLarge, geom(1024, 28)) == null,
+                "Transparent meshes still require actual per-section index storage");
+        opaqueCompact.resetWorld();
+        opaqueCompact.verify();
         // GPU reclamation journal must not re-scan every live page per upload.
         RegionMeshPipeline reclaim = new RegionMeshPipeline(1 << 20, 1 << 20);
         MeshKey aKey = new MeshKey(new Section(1, 0, 1), Layer.SOLID);

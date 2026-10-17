@@ -1,4 +1,4 @@
-name: Solarvant native GPU engine dev.4
+name: Solarvant native GPU engine dev.5
 on:
   push:
     branches: [solarvant-mc1.21.1-build]
@@ -50,8 +50,8 @@ jobs:
           mkdir -p dist
           JAR=$(find "Solarvant/$LOADER/build/libs" -type f -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
           test -n "$JAR"
-          cp "$JAR" "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.4.jar"
-          python3 Solarvant/scripts/verify-artifact.py "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.4.jar" "$LOADER"
+          cp "$JAR" "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.5.jar"
+          python3 Solarvant/scripts/verify-artifact.py "dist/solarvant-$LOADER-mc1.21.1-0.9.0-dev.5.jar" "$LOADER"
       - uses: actions/upload-artifact@v4
         with:
           name: solarvant-dev2-${{ matrix.loader }}

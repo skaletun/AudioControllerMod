@@ -21,3 +21,5 @@ java -cp .tmp-solarvant-tests dev.solarvant.tests.CoreTests
 
 java -cp .tmp-solarvant-tests dev.solarvant.tests.RegionMeshPipelineTests
 java -cp .tmp-solarvant-tests dev.solarvant.tests.QuadIndexCacheTests
+
+python3 scripts/test-native-adoption.py

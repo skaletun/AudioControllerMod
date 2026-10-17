@@ -171,7 +171,9 @@ public final class RegionMeshPipeline {
             Prepared p = allocate(page, ticket, geometry);
             if (p != null) return p;
         }
-        if (geometry.vertexBytes() > vertexPageBytes || geometry.indexBytes() > indexPageBytes)
+        if (geometry.vertexBytes() > vertexPageBytes
+                || (!IndexStoragePolicy.shared(ticket.key().layer())
+                    && geometry.indexBytes() > indexPageBytes))
             return null;
         PageId id = new PageId(region.x(), region.y(), region.z(), pool.layer(),
                 pool.stride(), pool.indexStride(), pageSerial++);
@@ -187,7 +189,13 @@ public final class RegionMeshPipeline {
         RegionArena.Allocation v = page.vertexArena.allocate(geometry.vertexBytes(),
                 geometry.vertexStride());
         if (v == null) return null;
-        RegionArena.Allocation i = page.indexArena.allocate(geometry.indexBytes(),
+        // Opaque geometry shares a canonical GPU EBO. Reserving its full
+        // per-mesh index byte count in a private region arena is unnecessary
+        // and forces pages to split while most vertex storage remains empty.
+        // Retain an aligned token to preserve ownership/retirement invariants.
+        int reservedIndexBytes = IndexStoragePolicy.shared(ticket.key().layer())
+                ? geometry.indexStride() : geometry.indexBytes();
+        RegionArena.Allocation i = page.indexArena.allocate(reservedIndexBytes,
                 geometry.indexStride());
         if (i == null) { page.vertexArena.free(v); return null; }
         ++page.refs;
